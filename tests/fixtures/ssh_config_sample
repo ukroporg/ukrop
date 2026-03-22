@@ -1,0 +1,24 @@
+Host *
+  User root
+  Port 22
+
+Host webserver
+  Hostname 192.168.1.100
+  User admin
+  Port 2222
+
+Host db-prod
+  Hostname db.example.com
+
+Host staging
+  Hostname 10.0.0.50
+  User deploy
+  Port 443
+
+# This is a comment
+Host *.internal
+  User ops
+
+Host bastion
+  Hostname bastion.example.com
+  Port 8022

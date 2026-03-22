@@ -1,0 +1,12 @@
+: 1700000000:0;git status
+: 1700000001:0;cargo build --release
+: 1700000002:0;docker compose up -d
+: 1700000003:0;ls
+: 1700000004:0;cd
+: 1700000005:0;vim ~/.zshrc
+: 1700000006:0;npm install express
+: 1700000007:0;git commit -m "initial commit"
+: 1700000008:0;clear
+: 1700000009:0;exit
+: 1700000010:0;python3 manage.py runserver
+: 1700000011:0;cargo test -- --nocapture

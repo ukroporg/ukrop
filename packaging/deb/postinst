@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+
+echo ""
+echo "ukrop installed successfully!"
+echo ""
+echo "To activate, add to your shell config:"
+echo ""
+echo "  # For bash (~/.bashrc):"
+echo "  eval \"\$(ukrop init bash)\""
+echo ""
+echo "  # For zsh (~/.zshrc):"
+echo "  eval \"\$(ukrop init zsh)\""
+echo ""

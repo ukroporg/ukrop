@@ -1,0 +1,12 @@
+git status
+cargo build --release
+docker compose up -d
+ls
+cd
+vim ~/.bashrc
+npm install express
+git commit -m "initial commit"
+clear
+exit
+python3 manage.py runserver
+cargo test -- --nocapture
