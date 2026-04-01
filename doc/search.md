@@ -41,7 +41,7 @@ works for both substring and fuzzy matches.
 When a query is active, matched items are ranked by a combined score:
 
 ```
-combined = fuzzy_score + prefix_bonus + substring_bonus + frecency_bonus
+combined = fuzzy_score + prefix_bonus + substring_bonus + frecency_bonus + brevity_bonus
 ```
 
 ### Components
@@ -52,6 +52,7 @@ combined = fuzzy_score + prefix_bonus + substring_bonus + frecency_bonus
 | `prefix_bonus`     | 0 or 10,000   | Applied when the item text starts with the query (case-insensitive). Ensures prefix matches always appear above non-prefix matches. |
 | `substring_bonus`  | 0 or 8,000    | Applied when the query appears as a contiguous substring. Ensures substring matches rank above fuzzy-only matches.                  |
 | `frecency_bonus`   | 0–5,000       | `min(frecency_score * frecency_weight, 5000)`. Items used more frequently and more recently get a higher bonus.                     |
+| `brevity_bonus`    | 0–3,000       | `max(0, 3000 - length * 15)`. Shorter commands get a higher bonus, so concise commands rank above long ones.                        |
 
 All bonus values are configurable in `~/.config/ukrop/config.toml`:
 
@@ -85,16 +86,18 @@ The bonuses create a clear ranking hierarchy:
 3. **Fuzzy-only matches** (no bonus) appear last — items where the query
    characters appear in order but not adjacent.
 
-Within each tier, items are further sorted by fuzzy quality + frecency.
+Within each tier, items are further sorted by fuzzy quality + frecency + brevity.
+Shorter commands get a significant boost (up to 3,000) so concise commands
+rank above long compound commands with the same query match.
 
 **Example for query `gp`:**
 
-| Item                      | fuzzy | prefix | substring | frecency (score) | combined |
-| ------------------------- | ----- | ------ | --------- | ---------------- | -------- |
-| `gp` (score=5.0)          | 100   | 10,000 | 8,000     | 500              | 18,600   |
-| `grep foo` (score=3.0)    | 80    | 0      | 8,000     | 300              | 8,380    |
-| `git push` (score=8.0)    | 60    | 0      | 0         | 800              | 860      |
-| `git pull` (score=2.0)    | 60    | 0      | 0         | 200              | 260      |
+| Item                      | fuzzy | prefix | substring | frecency (score) | brevity | combined |
+| ------------------------- | ----- | ------ | --------- | ---------------- | ------- | -------- |
+| `gp` (score=5.0)          | 100   | 10,000 | 8,000     | 500              | 2,970   | 21,570   |
+| `grep foo` (score=3.0)    | 80    | 0      | 8,000     | 300              | 2,865   | 11,245   |
+| `git push` (score=8.0)    | 60    | 0      | 0         | 800              | 2,865   | 3,725    |
+| `git pull` (score=2.0)    | 60    | 0      | 0         | 200              | 2,865   | 3,125    |
 
 ## Empty query
 

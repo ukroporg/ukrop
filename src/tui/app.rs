@@ -197,7 +197,11 @@ impl PanelState {
                 // Frecency bonus: scale DB score (typically 1-50) into ranking range
                 let frecency_bonus = (self.items[idx].score * 100.0).min(5_000.0) as u32;
 
-                entry.1 = fuzzy_score + prefix_bonus + substring_bonus + frecency_bonus;
+                // Brevity bonus: shorter commands rank higher (max 3000 for very short commands)
+                let len = self.display_texts[idx].len() as u32;
+                let brevity_bonus: u32 = 3_000u32.saturating_sub(len * 15);
+
+                entry.1 = fuzzy_score + prefix_bonus + substring_bonus + frecency_bonus + brevity_bonus;
             }
             self.filtered_indices.sort_by(|a, b| b.1.cmp(&a.1));
         }

@@ -69,6 +69,7 @@ packaging/         — Homebrew formula and deb packaging
 ### Homebrew
 
 ```sh
+brew tap gupalo/tap https://github.com/gupalo/homebrew-tap
 brew install gupalo/tap/ukrop
 ```
 
