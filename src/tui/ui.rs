@@ -157,15 +157,6 @@ fn draw_panel(f: &mut Frame, area: ratatui::layout::Rect, panel: &mut PanelState
     // overhead for continuation lines: 2 borders + 2 selector + 2 fav = 6, but continuation has blank prefix
     let prefix_width = 4; // "> " or "  " (2) + fav marker (2) = 4
 
-    // Compute match positions for all filtered items
-    let match_positions: Vec<Vec<u32>> = panel
-        .filtered_indices
-        .iter()
-        .map(|(item_idx, _, _)| {
-            panel.fuzzy.match_positions(query, &panel.display_texts[*item_idx])
-        })
-        .collect();
-
     let list_items: Vec<ListItem> = panel
         .filtered_indices
         .iter()
@@ -187,11 +178,12 @@ fn draw_panel(f: &mut Frame, area: ratatui::layout::Rect, panel: &mut PanelState
             };
 
             let selector = if is_selected { "> " } else { "  " };
-            let positions = &match_positions[display_idx];
 
             if is_cmd_panel && is_selected && item.display.chars().count() > text_max_width {
                 // Selected command: show multiline, max 5 rows
                 let lines = wrap_command(&item.display, text_max_width, 5);
+                let full_text: String = lines.concat();
+                let positions = panel.fuzzy.match_positions(query, &full_text);
                 let mut spans_lines: Vec<Line> = Vec::new();
                 // Remap positions to wrapped lines
                 let mut char_offset = 0usize;
@@ -226,7 +218,9 @@ fn draw_panel(f: &mut Frame, area: ratatui::layout::Rect, panel: &mut PanelState
                     truncate_path(&item.display, text_max_width)
                 };
 
-                let text_spans = highlighted_spans(&text, positions, style, hl_style);
+                // Compute match positions on the displayed (truncated) text
+                let positions = panel.fuzzy.match_positions(query, &text);
+                let text_spans = highlighted_spans(&text, &positions, style, hl_style);
                 let mut line_spans = vec![
                     Span::styled(selector, theme.selected),
                     Span::styled(fav_marker, fav_style),
