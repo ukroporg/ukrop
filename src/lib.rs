@@ -180,14 +180,14 @@ fn cmd_import(shell: Option<cli::ShellType>) -> Result<()> {
     let shell = shell.unwrap_or_else(|| detect_shell());
 
     let commands = match shell {
-        cli::ShellType::Bash => history::bash::parse_history()?,
-        cli::ShellType::Zsh => history::zsh::parse_history()?,
-        cli::ShellType::Fish => history::fish::parse_history()?,
-        cli::ShellType::Powershell => history::powershell::parse_history()?,
+        cli::ShellType::Bash => history::bash::parse_history_with_cwd()?,
+        cli::ShellType::Zsh => history::zsh::parse_history_with_cwd()?,
+        cli::ShellType::Fish => history::fish::parse_history_with_cwd()?,
+        cli::ShellType::Powershell => history::powershell::parse_history_with_cwd()?,
     };
 
     let cmd_count = commands.len();
-    store.import_commands_batch(&commands, "history")?;
+    store.import_commands_with_cwd_batch(&commands, "history")?;
 
     let directories = match shell {
         cli::ShellType::Bash => history::bash::extract_directories_from_history()?,

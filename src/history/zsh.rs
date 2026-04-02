@@ -1,8 +1,63 @@
 use anyhow::Result;
 use std::collections::HashSet;
 
-use super::parse_ssh_command;
+use super::{parse_ssh_command, resolve_cd_target, dedup_with_cwd};
 use crate::ssh::config::SshConfigHost;
+
+/// Parse zsh history and guess cwd for each command by tracking cd commands.
+pub fn parse_history_with_cwd() -> Result<Vec<(String, Option<String>)>> {
+    let path = std::env::var("HISTFILE").unwrap_or_else(|_| {
+        dirs::home_dir()
+            .map(|h| h.join(".zsh_history").to_string_lossy().into_owned())
+            .unwrap_or_default()
+    });
+    parse_history_file_with_cwd(&path)
+}
+
+pub fn parse_history_file_with_cwd(path: &str) -> Result<Vec<(String, Option<String>)>> {
+    let bytes = match std::fs::read(path) {
+        Ok(b) => b,
+        Err(_) => return Ok(vec![]),
+    };
+
+    let content = String::from_utf8_lossy(&bytes);
+    let mut pairs: Vec<(String, Option<String>)> = Vec::new();
+    let mut current_cwd: Option<String> = None;
+    let mut continuation = String::new();
+
+    for line in content.lines() {
+        if !continuation.is_empty() {
+            continuation = format!("{}\n{}", continuation, line);
+            if !line.ends_with('\\') {
+                let cmd = extract_zsh_command(&continuation);
+                continuation.clear();
+                if !cmd.is_empty() {
+                    if let Some(dir) = resolve_cd_target(&cmd) {
+                        current_cwd = Some(dir);
+                    }
+                    pairs.push((cmd, current_cwd.clone()));
+                }
+            }
+            continue;
+        }
+
+        if line.ends_with('\\') {
+            continuation = line.to_string();
+            continue;
+        }
+
+        let cmd = extract_zsh_command(line);
+        if cmd.is_empty() {
+            continue;
+        }
+        if let Some(dir) = resolve_cd_target(&cmd) {
+            current_cwd = Some(dir);
+        }
+        pairs.push((cmd, current_cwd.clone()));
+    }
+
+    Ok(dedup_with_cwd(pairs, should_skip))
+}
 
 pub fn parse_history() -> Result<Vec<String>> {
     let path = std::env::var("HISTFILE").unwrap_or_else(|_| {

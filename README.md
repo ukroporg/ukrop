@@ -116,5 +116,5 @@ MIT
 
 ## Help Ukraine
 
-If you find this project useful, please consider supporting
-Ukraine: [Donate](https://commission.europa.eu/topics/eu-solidarity-ukraine/donate_en)
+If you find this project useful, please consider supporting Ukraine:
+🇺🇦 [Donate](https://commission.europa.eu/topics/eu-solidarity-ukraine/donate_en)

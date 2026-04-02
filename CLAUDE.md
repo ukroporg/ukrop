@@ -35,6 +35,7 @@ source "$HOME/.cargo/env"
 
 ## Rules
 
+- Bump the version in `Cargo.toml` on each change (0.1.0 → 0.2.0 → 0.3.0 → …). Use minor version increments.
 - Always update documentation (README.md, CLAUDE.md, doc/) when changing features, architecture, or behavior.
 - `doc/usage.md` — detailed usage, shell integration, database schema, how it works
 - `doc/dev.md` — development workflow, project structure, packaging

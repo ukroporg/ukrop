@@ -90,6 +90,8 @@ pub struct PanelState {
     pub scroll_offset: usize,
     pub fuzzy: FuzzyMatcher,
     pub visible_height: usize,
+    /// Current working directory, used for cwd bonus in Commands panel.
+    pub cwd: Option<String>,
 }
 
 impl PanelState {
@@ -106,6 +108,7 @@ impl PanelState {
             scroll_offset: 0,
             fuzzy,
             visible_height: 0,
+            cwd: None,
         }
     }
 
@@ -201,7 +204,13 @@ impl PanelState {
                 let len = self.display_texts[idx].len() as u32;
                 let brevity_bonus: u32 = 3_000u32.saturating_sub(len * 15);
 
-                entry.1 = fuzzy_score + prefix_bonus + substring_bonus + frecency_bonus + brevity_bonus;
+                // CWD bonus: commands previously run in the current directory rank higher
+                let cwd_bonus: u32 = match (&self.cwd, &self.items[idx].cwd) {
+                    (Some(current), Some(item_cwd)) if current == item_cwd => 4_000,
+                    _ => 0,
+                };
+
+                entry.1 = fuzzy_score + prefix_bonus + substring_bonus + frecency_bonus + brevity_bonus + cwd_bonus;
             }
             self.filtered_indices.sort_by(|a, b| b.1.cmp(&a.1));
         }
@@ -321,11 +330,15 @@ pub fn run(
     let mut state = AppState {
         query: initial_q,
         cursor: initial_cursor,
-        panels: [
-            PanelState::new(PickerMode::Directories, dir_items),
-            PanelState::new(PickerMode::Commands, cmd_items),
-            PanelState::new(PickerMode::SshHosts, ssh_items),
-        ],
+        panels: {
+            let mut cmd_panel = PanelState::new(PickerMode::Commands, cmd_items);
+            cmd_panel.cwd = current_dir.clone();
+            [
+                PanelState::new(PickerMode::Directories, dir_items),
+                cmd_panel,
+                PanelState::new(PickerMode::SshHosts, ssh_items),
+            ]
+        },
         active,
         confirm_delete: false,
         cwd_filter: false,

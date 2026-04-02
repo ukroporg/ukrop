@@ -1,8 +1,39 @@
 use anyhow::Result;
 use std::collections::HashSet;
 
-use super::parse_ssh_command;
+use super::{parse_ssh_command, resolve_cd_target, dedup_with_cwd};
 use crate::ssh::config::SshConfigHost;
+
+/// Parse bash history and guess cwd for each command by tracking cd commands.
+pub fn parse_history_with_cwd() -> Result<Vec<(String, Option<String>)>> {
+    let path = dirs::home_dir()
+        .map(|h| h.join(".bash_history"))
+        .unwrap_or_default();
+    parse_history_file_with_cwd(&path.to_string_lossy())
+}
+
+pub fn parse_history_file_with_cwd(path: &str) -> Result<Vec<(String, Option<String>)>> {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return Ok(vec![]),
+    };
+
+    let mut pairs: Vec<(String, Option<String>)> = Vec::new();
+    let mut current_cwd: Option<String> = None;
+
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some(dir) = resolve_cd_target(line) {
+            current_cwd = Some(dir);
+        }
+        pairs.push((line.to_string(), current_cwd.clone()));
+    }
+
+    Ok(dedup_with_cwd(pairs, should_skip))
+}
 
 pub fn parse_history() -> Result<Vec<String>> {
     let path = dirs::home_dir()

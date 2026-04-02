@@ -480,6 +480,40 @@ impl Store {
         Ok(count == 0)
     }
 
+    /// Batch import commands with guessed cwd in a single transaction.
+    /// Only sets cwd if the command doesn't already have one (preserves hook-recorded cwd).
+    pub fn import_commands_with_cwd_batch(
+        &mut self,
+        commands: &[(String, Option<String>)],
+        source: &str,
+    ) -> Result<()> {
+        let now = chrono::Utc::now().timestamp();
+        let past = now - 30 * 24 * 3600;
+        let tx = self.conn.transaction()?;
+        for (command, cwd) in commands {
+            let exists: bool = tx.query_row(
+                "SELECT COUNT(*) > 0 FROM commands WHERE command = ?1",
+                [command.as_str()],
+                |row| row.get(0),
+            )?;
+            if !exists {
+                tx.execute(
+                    "INSERT INTO commands (command, score, use_count, last_used, source, cwd)
+                     VALUES (?1, 1.0, 1, ?2, ?3, ?4)",
+                    rusqlite::params![command, past, source, cwd],
+                )?;
+            } else if cwd.is_some() {
+                // Update cwd only if not already set
+                tx.execute(
+                    "UPDATE commands SET cwd = COALESCE(cwd, ?2) WHERE command = ?1",
+                    rusqlite::params![command, cwd],
+                )?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     /// Batch import commands in a single transaction for performance.
     pub fn import_commands_batch(&mut self, commands: &[String], source: &str) -> Result<()> {
         let now = chrono::Utc::now().timestamp();

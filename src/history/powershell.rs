@@ -1,8 +1,84 @@
 use anyhow::Result;
 use std::collections::HashSet;
 
-use super::parse_ssh_command;
+use super::{parse_ssh_command, resolve_cd_target, dedup_with_cwd};
 use crate::ssh::config::SshConfigHost;
+
+/// Parse PowerShell history and guess cwd for each command by tracking cd commands.
+pub fn parse_history_with_cwd() -> Result<Vec<(String, Option<String>)>> {
+    let path = psreadline_history_path();
+    parse_history_file_with_cwd(&path)
+}
+
+pub fn parse_history_file_with_cwd(path: &str) -> Result<Vec<(String, Option<String>)>> {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return Ok(vec![]),
+    };
+
+    let mut pairs: Vec<(String, Option<String>)> = Vec::new();
+    let mut current_cwd: Option<String> = None;
+    let mut current = String::new();
+
+    // Walk forward for cwd tracking
+    for line in content.lines() {
+        if current.is_empty() {
+            current = line.to_string();
+        } else {
+            current = format!("{}\n{}", current, line);
+        }
+
+        // If previous line ended with backtick, keep accumulating
+        if line.ends_with('`') {
+            continue;
+        }
+
+        let cmd = current.trim().to_string();
+        current.clear();
+
+        if cmd.is_empty() {
+            continue;
+        }
+
+        // Track cd/Set-Location for cwd guessing, also try the shared resolver
+        if let Some(dir) = extract_cd_target_no_check(&cmd)
+            .or_else(|| resolve_cd_target(&cmd))
+        {
+            current_cwd = Some(dir);
+        }
+        pairs.push((cmd, current_cwd.clone()));
+    }
+
+    Ok(dedup_with_cwd(pairs, should_skip))
+}
+
+/// Resolve PowerShell-specific cd targets (Set-Location, sl) without existence check.
+fn extract_cd_target_no_check(cmd: &str) -> Option<String> {
+    let cmd = cmd.trim();
+
+    let target = if let Some(rest) = cmd.strip_prefix("Set-Location ") {
+        extract_set_location_arg(rest)?
+    } else if let Some(rest) = cmd.strip_prefix("sl ") {
+        extract_set_location_arg(rest)?
+    } else {
+        return None; // let resolve_cd_target handle "cd" cases
+    };
+
+    let target = target.trim_matches(|c: char| c == '"' || c == '\'');
+    if target.is_empty() || target == "-" {
+        return None;
+    }
+    if target == "~" {
+        return dirs::home_dir().map(|h| h.to_string_lossy().into_owned());
+    }
+    if target.starts_with("~/") {
+        dirs::home_dir().map(|h| h.join(&target[2..]).to_string_lossy().into_owned())
+    } else if target.starts_with('/') {
+        Some(target.to_string())
+    } else {
+        None
+    }
+}
 
 pub fn parse_history() -> Result<Vec<String>> {
     let path = psreadline_history_path();

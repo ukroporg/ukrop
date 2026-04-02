@@ -5,6 +5,73 @@ pub mod zsh;
 
 use crate::ssh::config::SshConfigHost;
 
+/// Resolve a cd target path without checking if the directory exists.
+/// Used during history import to guess cwd for subsequent commands.
+/// Returns None for relative paths (can't resolve without prior cwd knowledge).
+pub fn resolve_cd_target(cmd: &str) -> Option<String> {
+    let cmd = cmd.trim();
+
+    let cd_part = if let Some(pos) = cmd.rfind("&& cd ") {
+        &cmd[pos + 3..]
+    } else if let Some(pos) = cmd.rfind("; cd ") {
+        &cmd[pos + 2..]
+    } else if cmd.starts_with("cd ") {
+        cmd
+    } else if cmd == "cd" {
+        return dirs::home_dir().map(|h| h.to_string_lossy().into_owned());
+    } else {
+        return None;
+    };
+
+    let args: Vec<&str> = cd_part.split_whitespace().collect();
+    let target = match args.as_slice() {
+        ["cd", "--", p] => *p,
+        ["cd", p] if !p.starts_with('-') => *p,
+        _ => return None,
+    };
+
+    let target = target.trim_matches(|c| c == '"' || c == '\'');
+
+    if target.is_empty() || target == "-" {
+        return None;
+    }
+
+    if target == "~" {
+        return dirs::home_dir().map(|h| h.to_string_lossy().into_owned());
+    }
+
+    if target.starts_with("~/") {
+        dirs::home_dir().map(|h| h.join(&target[2..]).to_string_lossy().into_owned())
+    } else if target.starts_with('/') {
+        Some(target.to_string())
+    } else {
+        None // relative path — can't resolve
+    }
+}
+
+/// Given a list of (command, cwd_at_time) pairs in chronological order,
+/// dedup keeping the last occurrence of each command with its cwd.
+/// Returns commands that pass `should_skip` filter removed, in original order.
+pub fn dedup_with_cwd(
+    pairs: Vec<(String, Option<String>)>,
+    should_skip: fn(&str) -> bool,
+) -> Vec<(String, Option<String>)> {
+    use std::collections::HashMap;
+    // Track last-seen index for each command
+    let mut last_idx: HashMap<String, usize> = HashMap::new();
+    for (i, (cmd, _)) in pairs.iter().enumerate() {
+        last_idx.insert(cmd.clone(), i);
+    }
+    pairs
+        .into_iter()
+        .enumerate()
+        .filter(|(i, (cmd, _))| {
+            !should_skip(cmd) && last_idx.get(cmd.as_str()) == Some(i)
+        })
+        .map(|(_, pair)| pair)
+        .collect()
+}
+
 /// Parse an ssh command line into an SshConfigHost.
 /// Handles: ssh host, ssh user@host, ssh -p PORT host, ssh -p PORT user@host
 /// Skips: ssh-keygen, ssh-copy-id, ssh-add, ssh -W (proxy)

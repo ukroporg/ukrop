@@ -23,6 +23,7 @@ pub struct PickerEntry {
     pub use_count: i64,
     pub exists: Option<bool>,
     pub duration_ms: Option<i64>,
+    pub cwd: Option<String>,
 }
 
 impl PickerEntry {
@@ -41,6 +42,7 @@ impl PickerEntry {
                     use_count: e.visit_count,
                     exists,
                     duration_ms: None,
+                    cwd: None,
                 }
             })
             .collect()
@@ -51,6 +53,7 @@ impl PickerEntry {
             .into_iter()
             .map(|e| {
                 let duration_ms = e.duration_ms;
+                let cwd = e.cwd.clone();
                 PickerEntry {
                     display: e.command.clone(),
                     value: e.command,
@@ -61,6 +64,7 @@ impl PickerEntry {
                     use_count: e.use_count,
                     exists: None,
                     duration_ms,
+                    cwd,
                 }
             })
             .collect()
@@ -87,6 +91,7 @@ impl PickerEntry {
                     use_count: e.use_count,
                     exists: None,
                     duration_ms: None,
+                    cwd: None,
                 }
             })
             .collect()
