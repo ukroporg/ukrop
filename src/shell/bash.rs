@@ -18,7 +18,7 @@ __ukrop_hook() {
             local duration_ms=$(( (SECONDS - __ukrop_cmd_start) * 1000 ))
             duration_args="--duration-ms $duration_ms"
         fi
-        command ukrop hook-cmd --cmd "$__ukrop_last_cmd" --exit-code "$exit_code" --cwd "$PWD" $duration_args &>/dev/null &
+        { command ukrop hook-cmd --cmd "$__ukrop_last_cmd" --exit-code "$exit_code" --cwd "$PWD" $duration_args &>/dev/null & disown; } 2>/dev/null
         __ukrop_last_cmd=""
         __ukrop_cmd_start=""
     fi
@@ -53,12 +53,12 @@ ukrop() {
                 run:*)
                     local cmd="${result#run:}"
                     history -s "$cmd"
-                    command ukrop hook-cmd --cmd "$cmd" --exit-code 0 --cwd "$PWD" &>/dev/null &
+                    { command ukrop hook-cmd --cmd "$cmd" --exit-code 0 --cwd "$PWD" &>/dev/null & disown; } 2>/dev/null
                     eval "$cmd"
                     ;;
                 ssh:*)
                     local ssh_args="${result#ssh:}"
-                    command ukrop hook-ssh --host "$ssh_args" &>/dev/null &
+                    { command ukrop hook-ssh --host "$ssh_args" &>/dev/null & disown; } 2>/dev/null
                     ssh $ssh_args
                     ;;
             esac
