@@ -140,6 +140,35 @@ ukrop list --ssh              # show tracked SSH hosts with scores
 ukrop list --json             # JSON output for scripting
 ```
 
+### Export / import database
+
+Back up and restore the entire database (all directories, commands, SSH hosts with exact scores and timestamps):
+
+```sh
+ukrop export --file backup.jsonl     # export to JSONL file
+ukrop export                         # export to stdout (pipe-friendly)
+ukrop import --file backup.jsonl     # restore from JSONL (replaces current data)
+```
+
+JSONL format — one JSON object per line with a `type` field (`directory`, `command`, `ssh_host`).
+
+Typical workflow for recording a demo video:
+
+```sh
+ukrop export --file ~/my-data.jsonl  # save personal data
+ukrop demo                           # generate demo data
+# ... record video ...
+ukrop import --file ~/my-data.jsonl  # restore personal data
+```
+
+### Generate demo data
+
+```sh
+ukrop demo      # replaces database with realistic sample data
+```
+
+Generates ~25 directories, ~40 commands, and ~10 SSH hosts with varied scores, timestamps, and favorites — useful for screencasts and testing.
+
 ### Shell integration output
 
 ```sh

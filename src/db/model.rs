@@ -1,6 +1,6 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirEntry {
     pub id: i64,
     pub path: String,
@@ -10,7 +10,7 @@ pub struct DirEntry {
     pub is_favorite: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CmdEntry {
     pub id: i64,
     pub command: String,
@@ -24,7 +24,7 @@ pub struct CmdEntry {
     pub duration_ms: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SshHostEntry {
     pub id: i64,
     pub host: String,

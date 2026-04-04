@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ukrop - Quick Directory Jumping &amp; Command Execution</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: #1a1a2e; color: #e0e0e0; }
+
+  .slide {
+    display: none;
+    min-height: 100vh;
+    padding: 60px 80px;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .slide.active { display: flex; }
+
+  h1 { font-size: 3em; color: #ffd700; margin-bottom: 20px; }
+  h2 { font-size: 2.2em; color: #ffd700; margin-bottom: 30px; }
+  h3 { font-size: 1.4em; color: #aaa; margin-bottom: 40px; font-weight: 400; }
+  p, li { font-size: 1.3em; line-height: 1.7; }
+  ul { margin-left: 30px; margin-bottom: 20px; }
+  li { margin-bottom: 8px; }
+  code { background: #16213e; padding: 2px 8px; border-radius: 4px; font-size: 0.95em; color: #7ec8e3; }
+  pre { background: #16213e; padding: 20px 24px; border-radius: 8px; margin: 20px 0; font-size: 1.1em; line-height: 1.6; overflow-x: auto; color: #7ec8e3; }
+
+  .screenshot-placeholder {
+    background: #16213e;
+    border: 2px dashed #ffd700;
+    border-radius: 12px;
+    padding: 40px;
+    margin: 30px 0;
+    text-align: center;
+    color: #888;
+    font-size: 1.1em;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .screenshot-placeholder .label { color: #ffd700; font-size: 1.3em; font-weight: 600; }
+
+  .annotation {
+    display: none; /* hidden from viewers */
+  }
+
+  .highlight { color: #ffd700; }
+  .accent { color: #7ec8e3; }
+  .green { color: #50fa7b; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+  .features li { color: #ccc; }
+  .features li::marker { color: #ffd700; }
+
+  .key { display: inline-block; background: #333; border: 1px solid #555; border-radius: 4px; padding: 2px 10px; font-size: 0.9em; font-family: monospace; color: #ffd700; }
+
+  .slide-number { position: fixed; bottom: 20px; right: 30px; color: #555; font-size: 0.9em; }
+  .nav-hint { position: fixed; bottom: 20px; left: 30px; color: #444; font-size: 0.85em; }
+
+  .title-slide { text-align: center; justify-content: center; align-items: center; }
+  .title-slide h1 { font-size: 4em; margin-bottom: 10px; }
+  .title-slide h3 { font-size: 1.6em; color: #7ec8e3; }
+  .title-slide .tagline { font-size: 1.2em; color: #888; margin-top: 30px; }
+
+  .emoji { font-size: 1.5em; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- SLIDE 1: Title -->
+<!-- ============================================================ -->
+<div class="slide title-slide">
+  <h1>ukrop</h1>
+  <h3>Quick Directory Jumping &amp; Command Execution</h3>
+  <p class="tagline">A fast TUI for navigating directories, re-running commands, and connecting via SSH.</p>
+  <p class="tagline" style="margin-top: 40px; color: #555;">Built with Rust. Open source. MIT license.</p>
+
+  <div class="annotation">
+    Voice: "Every day we type long paths, dig through history, look up SSH aliases. ukrop puts all of that in one fast, fuzzy-searchable interface."
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 2: The Problem -->
+<!-- ============================================================ -->
+<div class="slide">
+  <h2>The Problem</h2>
+  <pre>$ cd ~/projects/api-server/src/handlers     # too much typing
+$ history | grep docker                      # noisy, wrong match
+$ cat ~/.ssh/config                          # scroll to find the alias</pre>
+  <p style="margin-top: 30px;">We do this <span class="highlight">dozens of times a day</span>.</p>
+  <p>Shells give us <code>cd</code>, <code>Ctrl+R</code>, and <code>ssh</code> -- but they don't talk to each other.</p>
+
+  <div class="annotation">
+    Voice: "We all do this dozens of times a day. There's a faster way."
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 3: Install & Setup -->
+<!-- ============================================================ -->
+<div class="slide">
+  <h2>Install &amp; Setup</h2>
+  <div class="two-col">
+    <div>
+      <pre>$ brew install gupalo/tap/ukrop
+
+$ ukrop setup</pre>
+      <ul style="margin-top: 20px;">
+        <li>Imports shell history &amp; SSH config</li>
+        <li>Adds shell integration to your rc file</li>
+        <li>Enables the <code>u</code> shortcut</li>
+      </ul>
+      <p style="margin-top: 20px;">Supports <span class="accent">zsh</span>, <span class="accent">bash</span>, <span class="accent">fish</span>, <span class="accent">PowerShell</span></p>
+    </div>
+    <div class="screenshot-placeholder">
+      <span class="label">Screenshot</span>
+      Terminal showing `ukrop setup` output: importing history, adding shell integration, success message
+    </div>
+  </div>
+
+  <div class="annotation">
+    Voice: "One command installs, one command sets up. It imports your shell history, SSH config, and adds shell integration. That's it."
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 4: Three-Panel TUI Overview -->
+<!-- ============================================================ -->
+<div class="slide">
+  <h2>Three-Panel TUI</h2>
+  <div class="screenshot-placeholder" style="min-height: 350px;">
+    <span class="label">Screenshot: Full TUI</span>
+    Default view after `u` -- all three panels visible: cd (top-left, 26 dirs), run (right, 40 commands), ssh (bottom-left, 10 hosts). Active panel = cd with green border. Details bar shows selected directory path, visit count, last visit time, exists status. Shortcut bar at bottom.
+  </div>
+  <div class="two-col" style="margin-top: 20px;">
+    <ul class="features">
+      <li><span class="highlight">cd</span> -- directories sorted by frecency</li>
+      <li><span class="highlight">run</span> -- commands from hooks &amp; history</li>
+      <li><span class="highlight">ssh</span> -- hosts from config &amp; history</li>
+    </ul>
+    <ul class="features">
+      <li>Favorites <span class="green">*</span> pinned to the top</li>
+      <li>Non-existent paths shown in <span style="color: #ff5555;">red</span></li>
+      <li>Details bar with metadata for selected item</li>
+    </ul>
+  </div>
+
+  <div class="annotation">
+    Voice: "Everything in one place. Directories, commands, SSH hosts. The most-used items float to the top automatically."
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 5: Fuzzy Search -->
+<!-- ============================================================ -->
+<div class="slide">
+  <h2>Fuzzy Search Across All Panels</h2>
+  <p>One search bar filters <span class="highlight">all three panels</span> simultaneously.</p>
+  <div class="two-col" style="margin-top: 20px;">
+    <div>
+      <div class="screenshot-placeholder">
+        <span class="label">Screenshot: Search "docker"</span>
+        TUI with "docker" typed in search bar. Run panel highlights docker compose commands. Cd panel shows infra directory. Matched characters highlighted in cyan.
+      </div>
+    </div>
+    <div>
+      <div class="screenshot-placeholder">
+        <span class="label">Screenshot: Search "prod"</span>
+        TUI with "prod" typed. SSH panel shows prod-web-01, prod-web-02, prod-db. Run panel shows deploy commands. Matched letters highlighted.
+      </div>
+    </div>
+  </div>
+  <ul style="margin-top: 20px;">
+    <li>Substring matches first, fuzzy fallback</li>
+    <li>Matched characters highlighted (<span class="accent">cyan + underline</span>)</li>
+    <li>Results re-ranked in real time as you type</li>
+  </ul>
+
+  <div class="annotation">
+    Voice: "One search box filters everything. Substring matches first, fuzzy fallback. The matched characters are highlighted so you always know why something matched."
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 6: Jump to Directory -->
+<!-- ============================================================ -->
+<div class="slide">
+  <h2>Jump to Directory</h2>
+  <pre>$ u cd api          # opens cd panel with "api" pre-filled
+$ u                  # opens TUI, type to filter, Enter to jump</pre>
+  <div class="screenshot-placeholder">
+    <span class="label">Screenshot: cd with "api" filter</span>
+    TUI with "api" in search bar, cd panel active. api-server and api-server/src/handlers visible. Cursor on api-server. Details bar shows path, visit count.
+  </div>
+  <p style="margin-top: 20px;">
+    <span class="key">Enter</span> to jump &nbsp;|&nbsp;
+    Non-interactive mode: <code>cd "$(ukrop cd projects)"</code> prints best match for scripts
+  </p>
+
+  <div class="annotation">
+    Voice: "Type a few characters, hit Enter, you're there. No more typing long paths."
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 7: Re-Run Commands -->
+<!-- ============================================================ -->
+<div class="slide">
+  <h2>Re-Run Commands</h2>
+  <p><span class="key">Ctrl+R</span> replaces your shell's built-in reverse search.</p>
+  <div class="screenshot-placeholder">
+    <span class="label">Screenshot: Ctrl+R with "compose" filter</span>
+    TUI opened via Ctrl+R, run panel active, "compose" in search bar. Docker compose commands visible: up -d, logs -f api, down. Cursor on "docker compose up -d".
+  </div>
+  <div class="two-col" style="margin-top: 20px;">
+    <div>
+      <p><span class="key">Enter</span> -- run immediately</p>
+      <p style="margin-top: 10px;"><span class="key">Shift+Enter</span> -- paste to terminal for editing</p>
+    </div>
+    <div>
+      <p><span class="key">Ctrl+Y</span> -- copy to clipboard</p>
+      <p style="margin-top: 10px;"><span class="key">Ctrl+W</span> -- CWD filter: show only commands run here</p>
+    </div>
+  </div>
+
+  <div class="annotation">
+    Voice: "Ctrl+R replaces your shell's reverse search. Enter runs immediately. Shift+Enter pastes the command so you can edit it first."
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 8: SSH Connect -->
+<!-- ============================================================ -->
+<div class="slide">
+  <h2>SSH Host Picker</h2>
+  <pre>$ u ssh              # opens TUI with ssh panel active
+$ u ssh prod         # pre-filled with "prod"</pre>
+  <div class="screenshot-placeholder">
+    <span class="label">Screenshot: SSH panel active</span>
+    TUI with ssh panel active (green border). Shows hosts: prod-web-01 with deploy@10.0.1.10, bastion with alex@bastion.example.com:2222, prod-db with postgres@10.0.2.10:5432. Favorites starred. Details bar shows host info.
+  </div>
+  <ul style="margin-top: 20px;">
+    <li>Imports from <code>~/.ssh/config</code> and shell history</li>
+    <li>Shows hostname, port, user for each host</li>
+    <li><span class="key">Enter</span> starts SSH connection</li>
+  </ul>
+
+  <div class="annotation">
+    Voice: "SSH hosts from your config and history, all searchable. Pick a host and connect."
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 9: Favorites & Management -->
+<!-- ============================================================ -->
+<div class="slide">
+  <h2>Favorites &amp; Entry Management</h2>
+  <div class="two-col">
+    <div>
+      <div class="screenshot-placeholder">
+        <span class="label">Screenshot: Favorites</span>
+        TUI showing starred items (yellow *) at top of cd and run panels: webapp, api-server, nvim config in cd; git status, cargo test, npm run dev in run.
+      </div>
+    </div>
+    <div style="padding-top: 40px;">
+      <p><span class="key">Ctrl+F</span> -- toggle favorite</p>
+      <p style="margin-top: 15px;">Favorites are <span class="green">pinned to the top</span> and immune to auto-cleanup.</p>
+      <p style="margin-top: 30px;"><span class="key">Ctrl+Del</span> -- delete entry (with confirmation)</p>
+      <p style="margin-top: 15px;"><span class="key">Ctrl+Y</span> -- copy to clipboard</p>
+      <p style="margin-top: 30px;">CLI: <code>ukrop add ~/myapp</code> to add a favorite directory</p>
+    </div>
+  </div>
+
+  <div class="annotation">
+    Voice: "Ctrl+F to favorite, Ctrl+Del to delete, Ctrl+Y to copy. Favorites always stay at the top."
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 10: Frecency -->
+<!-- ============================================================ -->
+<div class="slide">
+  <h2>Frecency Scoring</h2>
+  <p>Not just frequency. Not just recency. <span class="highlight">Both.</span></p>
+  <div class="two-col" style="margin-top: 30px;">
+    <div>
+      <ul class="features">
+        <li>Exponential decay with <span class="accent">1-week half-life</span></li>
+        <li>100 visits a month ago &lt; 10 visits today</li>
+        <li>Automatic aging when total scores exceed threshold</li>
+        <li>Near-zero entries pruned automatically</li>
+      </ul>
+    </div>
+    <div>
+      <pre style="font-size: 0.95em;">score = old_score * 2^(-elapsed/week) + 1
+
+# Yesterday's hot directory:   12.4
+# Last week's project:          3.1
+# Last month's experiment:      0.2  (auto-pruned)</pre>
+    </div>
+  </div>
+  <p style="margin-top: 30px;">The right items are always at the top -- <span class="highlight">without manual sorting</span>.</p>
+
+  <div class="annotation">
+    Voice: "Frecency combines frequency and recency. A directory visited 100 times a month ago scores lower than one visited 10 times today. The most relevant items always float to the top automatically."
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 11: Config Editor -->
+<!-- ============================================================ -->
+<div class="slide">
+  <h2>In-TUI Config Editor</h2>
+  <div class="two-col">
+    <div class="screenshot-placeholder" style="min-height: 350px;">
+      <span class="label">Screenshot: Config editor overlay</span>
+      F2 config dialog open over the TUI. Shows sections: Scoring (frecency_weight: 100, substring_bonus: 8000, prefix_bonus: 10000), Cleanup (stale_days: 90), Theme (preset: Gruvbox with arrows, selection_bold: [x], match_underline: [x], favorite_italic: [ ]), Layout (left_panel_pct: 25, cd_panel_pct: 75), Ignore Patterns ([+ Add new pattern]). Bottom: F2/^S save, Esc cancel, arrows navigate.
+    </div>
+    <div style="padding-top: 20px;">
+      <p><span class="key">F2</span> to open / save</p>
+      <p style="margin-top: 15px;"><span class="key">Esc</span> to cancel &amp; revert</p>
+      <p style="margin-top: 30px;">Sections:</p>
+      <ul class="features" style="margin-top: 10px;">
+        <li><span class="highlight">Scoring</span> -- ranking weights</li>
+        <li><span class="highlight">Cleanup</span> -- stale directory pruning</li>
+        <li><span class="highlight">Theme</span> -- 12 presets, live preview</li>
+        <li><span class="highlight">Layout</span> -- panel proportions</li>
+        <li><span class="highlight">Ignore</span> -- exclude commands</li>
+      </ul>
+      <p style="margin-top: 20px;">All changes preview <span class="green">live</span> behind the dialog.</p>
+    </div>
+  </div>
+
+  <div class="annotation">
+    Voice: "F2 opens the config editor. 12 built-in themes with live preview -- the panels behind update as you browse. Tweak layout ratios, scoring weights, ignore patterns. F2 saves, Esc cancels and reverts everything."
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 12: Themes -->
+<!-- ============================================================ -->
+<div class="slide">
+  <h2>12 Built-in Themes</h2>
+  <div class="two-col">
+    <div class="screenshot-placeholder">
+      <span class="label">Screenshot: Default theme</span>
+      TUI with Default theme -- yellow borders, cyan highlights, green/white/gray age colors.
+    </div>
+    <div class="screenshot-placeholder">
+      <span class="label">Screenshot: Nord theme</span>
+      TUI with Nord theme -- blue/cyan tones, muted palette.
+    </div>
+  </div>
+  <div class="two-col" style="margin-top: 20px;">
+    <div class="screenshot-placeholder">
+      <span class="label">Screenshot: Dracula theme</span>
+      TUI with Dracula theme -- purple borders, green highlights, pink headers.
+    </div>
+    <div class="screenshot-placeholder">
+      <span class="label">Screenshot: Catppuccin theme</span>
+      TUI with Catppuccin Mocha -- mauve/green pastel palette.
+    </div>
+  </div>
+  <p style="margin-top: 20px; text-align: center; color: #888;">Default | Light | Nord | Solarized | Monochrome | Dracula | Gruvbox | Catppuccin | Tokyo Night | Kanagawa | Everforest | Rose</p>
+
+  <div class="annotation">
+    Voice: "Pick a theme that matches your terminal. All changes are live-previewed."
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 13: Keyboard Shortcuts -->
+<!-- ============================================================ -->
+<div class="slide">
+  <h2>Keyboard Shortcuts</h2>
+  <div class="two-col">
+    <div>
+      <p style="margin-bottom: 15px; color: #ffd700;">Navigation</p>
+      <p><span class="key">Tab</span> / <span class="key">Shift+Tab</span> -- switch panel</p>
+      <p><span class="key">Up</span> / <span class="key">Down</span> -- move in list</p>
+      <p><span class="key">PgUp</span> / <span class="key">PgDn</span> -- scroll page</p>
+      <p><span class="key">Home</span> / <span class="key">End</span> -- cursor in search</p>
+      <p style="margin-top: 25px; margin-bottom: 15px; color: #ffd700;">Search</p>
+      <p><span class="key">Ctrl+U</span> -- clear search</p>
+      <p><span class="key">Ctrl+W</span> -- CWD filter / delete word</p>
+    </div>
+    <div>
+      <p style="margin-bottom: 15px; color: #ffd700;">Actions</p>
+      <p><span class="key">Enter</span> -- select &amp; run</p>
+      <p><span class="key">Shift+Enter</span> -- paste for editing</p>
+      <p><span class="key">Ctrl+Y</span> -- copy to clipboard</p>
+      <p><span class="key">Ctrl+F</span> -- toggle favorite</p>
+      <p><span class="key">Ctrl+Del</span> -- delete entry</p>
+      <p style="margin-top: 25px; margin-bottom: 15px; color: #ffd700;">Other</p>
+      <p><span class="key">F1</span> -- help overlay</p>
+      <p><span class="key">F2</span> -- config editor</p>
+      <p><span class="key">Esc</span> -- quit</p>
+    </div>
+  </div>
+
+  <div class="annotation">
+    Voice: "All shortcuts are shown in the bottom bar and in the F1 help overlay."
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- SLIDE 14: Closing -->
+<!-- ============================================================ -->
+<div class="slide title-slide">
+  <h1>ukrop</h1>
+  <h3>Stop typing paths. Start jumping.</h3>
+  <pre style="text-align: left; display: inline-block; margin-top: 30px;">$ brew install gupalo/tap/ukrop
+$ ukrop setup</pre>
+  <p style="margin-top: 40px; font-size: 1.2em;">
+    <span class="accent">github.com/gupalo/ukrop</span>
+  </p>
+  <p style="margin-top: 40px; font-size: 1em; color: #888;">
+    MIT License &nbsp;|&nbsp; Rust &nbsp;|&nbsp; zsh / bash / fish / PowerShell
+  </p>
+  <p style="margin-top: 30px;">
+    Help Ukraine: <span style="color: #ffd700;">commission.europa.eu/topics/eu-solidarity-ukraine/donate_en</span>
+  </p>
+
+  <div class="annotation">
+    Voice: "ukrop. Install it, set it up, forget about cd and Ctrl+R. Link in the description."
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- Navigation JS -->
+<!-- ============================================================ -->
+<div class="slide-number" id="slideNum"></div>
+<div class="nav-hint">Arrow keys or click to navigate</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let current = 0;
+
+  function show(n) {
+    slides[current].classList.remove('active');
+    current = Math.max(0, Math.min(n, slides.length - 1));
+    slides[current].classList.add('active');
+    document.getElementById('slideNum').textContent = (current + 1) + ' / ' + slides.length;
+  }
+
+  show(0);
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); show(current + 1); }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); show(current - 1); }
+    if (e.key === 'Home') { e.preventDefault(); show(0); }
+    if (e.key === 'End') { e.preventDefault(); show(slides.length - 1); }
+  });
+
+  document.addEventListener('click', e => {
+    if (e.clientX > window.innerWidth / 2) show(current + 1);
+    else show(current - 1);
+  });
+</script>
+
+</body>
+</html>

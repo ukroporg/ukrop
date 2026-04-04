@@ -587,6 +587,118 @@ impl Store {
         Ok(())
     }
 
+    /// Export all entries from all tables with raw (non-decayed) scores.
+    pub fn export_all_raw(&self) -> Result<(Vec<DirEntry>, Vec<CmdEntry>, Vec<SshHostEntry>)> {
+        let mut dir_stmt = self.conn.prepare(
+            "SELECT id, path, score, visit_count, last_visit, is_favorite FROM directories ORDER BY id",
+        )?;
+        let dirs: Vec<DirEntry> = dir_stmt
+            .query_map([], |row| {
+                Ok(DirEntry {
+                    id: row.get(0)?,
+                    path: row.get(1)?,
+                    score: row.get(2)?,
+                    visit_count: row.get(3)?,
+                    last_visit: row.get(4)?,
+                    is_favorite: row.get(5)?,
+                })
+            })?
+            .filter_map(|e| e.ok())
+            .collect();
+
+        let mut cmd_stmt = self.conn.prepare(
+            "SELECT id, command, score, use_count, last_used, is_favorite, source, exit_code, cwd, duration_ms FROM commands ORDER BY id",
+        )?;
+        let cmds: Vec<CmdEntry> = cmd_stmt
+            .query_map([], |row| {
+                Ok(CmdEntry {
+                    id: row.get(0)?,
+                    command: row.get(1)?,
+                    score: row.get(2)?,
+                    use_count: row.get(3)?,
+                    last_used: row.get(4)?,
+                    is_favorite: row.get(5)?,
+                    source: row.get(6)?,
+                    exit_code: row.get(7)?,
+                    cwd: row.get(8)?,
+                    duration_ms: row.get(9)?,
+                })
+            })?
+            .filter_map(|e| e.ok())
+            .collect();
+
+        let mut ssh_stmt = self.conn.prepare(
+            "SELECT id, host, hostname, port, user, score, use_count, last_used, is_favorite, source FROM ssh_hosts ORDER BY id",
+        )?;
+        let hosts: Vec<SshHostEntry> = ssh_stmt
+            .query_map([], |row| {
+                Ok(SshHostEntry {
+                    id: row.get(0)?,
+                    host: row.get(1)?,
+                    hostname: row.get(2)?,
+                    port: row.get(3)?,
+                    user: row.get(4)?,
+                    score: row.get(5)?,
+                    use_count: row.get(6)?,
+                    last_used: row.get(7)?,
+                    is_favorite: row.get(8)?,
+                    source: row.get(9)?,
+                })
+            })?
+            .filter_map(|e| e.ok())
+            .collect();
+
+        Ok((dirs, cmds, hosts))
+    }
+
+    /// Import a directory entry with exact field values (for DB restore).
+    pub fn import_dir_entry_exact(&mut self, e: &DirEntry) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO directories (path, score, visit_count, last_visit, is_favorite)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(path) DO UPDATE SET
+                score = ?2, visit_count = ?3, last_visit = ?4, is_favorite = ?5",
+            rusqlite::params![e.path, e.score, e.visit_count, e.last_visit, e.is_favorite],
+        )?;
+        Ok(())
+    }
+
+    /// Import a command entry with exact field values (for DB restore).
+    pub fn import_cmd_entry_exact(&mut self, e: &CmdEntry) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO commands (command, score, use_count, last_used, is_favorite, source, exit_code, cwd, duration_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(command) DO UPDATE SET
+                score = ?2, use_count = ?3, last_used = ?4, is_favorite = ?5,
+                source = ?6, exit_code = ?7, cwd = ?8, duration_ms = ?9",
+            rusqlite::params![e.command, e.score, e.use_count, e.last_used, e.is_favorite, e.source, e.exit_code, e.cwd, e.duration_ms],
+        )?;
+        Ok(())
+    }
+
+    /// Import an SSH host entry with exact field values (for DB restore).
+    pub fn import_ssh_entry_exact(&mut self, e: &SshHostEntry) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO ssh_hosts (host, hostname, port, user, score, use_count, last_used, is_favorite, source)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(host) DO UPDATE SET
+                hostname = ?2, port = ?3, user = ?4, score = ?5,
+                use_count = ?6, last_used = ?7, is_favorite = ?8, source = ?9",
+            rusqlite::params![e.host, e.hostname, e.port, e.user, e.score, e.use_count, e.last_used, e.is_favorite, e.source],
+        )?;
+        Ok(())
+    }
+
+    /// Delete all entries from all tables.
+    pub fn clear_all(&mut self) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        tx.execute("DELETE FROM directories", [])?;
+        tx.execute("DELETE FROM commands", [])?;
+        tx.execute("DELETE FROM ssh_hosts", [])?;
+        tx.commit()?;
+        Ok(())
+    }
+
     /// Remove stale directory entries that no longer exist on disk.
     pub fn cleanup_stale_directories(&mut self, max_age_days: u64) -> Result<usize> {
         let now = chrono::Utc::now().timestamp();

@@ -81,11 +81,22 @@ pub enum Command {
         /// Path or command to forget
         path: String,
     },
-    /// Import from shell history
+    /// Import from shell history or restore database from JSONL file
     Import {
         /// Shell type (defaults to auto-detect)
         shell: Option<ShellType>,
+        /// Import from JSONL file (full database restore)
+        #[arg(long)]
+        file: Option<String>,
     },
+    /// Export database to JSONL file
+    Export {
+        /// Output file path (defaults to stdout)
+        #[arg(long)]
+        file: Option<String>,
+    },
+    /// Generate demo data for screencasts (replaces current database)
+    Demo,
     /// Initial setup: import history, SSH config, add shell integration
     Setup {
         /// Run setup even if already completed

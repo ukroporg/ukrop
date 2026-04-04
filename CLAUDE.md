@@ -25,6 +25,7 @@ source "$HOME/.cargo/env"
 - `src/util.rs` — XDG paths, path helpers, `UKROP_DB_PATH` env override
 - `src/frecency.rs` — Frecency scoring (exponential decay, 1-week half-life)
 - `src/db/` — SQLite layer (model.rs, store.rs, migrate.rs)
+- `src/demo.rs` — Demo data generation for screencasts
 - `src/config.rs` — TOML config file (`~/.config/ukrop/config.toml`), ignore patterns, scoring weights, theme/layout config, save support
 - `src/history/` — Shell history parsers (bash.rs, zsh.rs, fish.rs, powershell.rs)
 - `src/shell/` — Shell init script templates (bash.rs, zsh.rs, fish.rs, powershell.rs)
@@ -53,7 +54,7 @@ source "$HOME/.cargo/env"
 
 ## Tests
 
-68 tests total. Run with `cargo test`. No special setup needed — integration tests use tempfile for isolated DB instances.
+72 tests total. Run with `cargo test`. No special setup needed — integration tests use tempfile for isolated DB instances.
 
 ## Packaging
 

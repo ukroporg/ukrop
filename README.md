@@ -87,6 +87,14 @@ u --help        # show help
 
 Press **Ctrl+R** in your shell to open the TUI with the run panel active.
 
+### Export / Import / Demo
+
+```sh
+ukrop export --file backup.jsonl   # back up entire database
+ukrop import --file backup.jsonl   # restore from backup (replaces current data)
+ukrop demo                         # generate demo data for screencasts
+```
+
 For manual setup and detailed usage, see [doc/usage.md](doc/usage.md).
 
 ## TUI Keys

@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod config;
 pub mod db;
+pub mod demo;
 pub mod frecency;
 pub mod history;
 pub mod shell;
@@ -27,7 +28,9 @@ pub fn run() -> Result<()> {
         Some(Command::HookCmd { cmd, exit_code, cwd, duration_ms }) => cmd_hook_cmd(&cmd, exit_code, cwd, duration_ms),
         Some(Command::Add { path }) => cmd_add(&path),
         Some(Command::Forget { path }) => cmd_forget(&path),
-        Some(Command::Import { shell }) => cmd_import(shell),
+        Some(Command::Import { shell, file }) => cmd_import(shell, file),
+        Some(Command::Export { file }) => cmd_export(file),
+        Some(Command::Demo) => cmd_demo(),
         Some(Command::Setup { force }) => cmd_setup(force),
         Some(Command::Config) => cmd_config(),
         Some(Command::List { commands, ssh, json }) => cmd_list(commands, ssh, json),
@@ -173,7 +176,11 @@ fn cmd_forget(path: &str) -> Result<()> {
     Ok(())
 }
 
-fn cmd_import(shell: Option<cli::ShellType>) -> Result<()> {
+fn cmd_import(shell: Option<cli::ShellType>, file: Option<String>) -> Result<()> {
+    if let Some(file_path) = file {
+        return cmd_import_file(&file_path);
+    }
+
     let db_path = util::db_path()?;
     let mut store = db::store::Store::open(&db_path)?;
 
@@ -215,6 +222,124 @@ fn cmd_import(shell: Option<cli::ShellType>) -> Result<()> {
     eprintln!(
         "Imported {} commands, {} directories, {} SSH hosts (config) + {} SSH hosts (history) from {:?}",
         cmd_count, dir_count, ssh_config_count, ssh_hist_count, shell
+    );
+    Ok(())
+}
+
+fn cmd_import_file(file_path: &str) -> Result<()> {
+    use std::io::BufRead;
+
+    let db_path = util::db_path()?;
+    let mut store = db::store::Store::open(&db_path)?;
+
+    let file = std::fs::File::open(file_path)?;
+    let reader = std::io::BufReader::new(file);
+
+    store.clear_all()?;
+
+    let mut dir_count = 0u64;
+    let mut cmd_count = 0u64;
+    let mut ssh_count = 0u64;
+
+    for line in reader.lines() {
+        let line = line?;
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let value: serde_json::Value = serde_json::from_str(line)?;
+        match value.get("type").and_then(|t| t.as_str()) {
+            Some("directory") => {
+                let entry: db::model::DirEntry = serde_json::from_str(line)?;
+                store.import_dir_entry_exact(&entry)?;
+                dir_count += 1;
+            }
+            Some("command") => {
+                let entry: db::model::CmdEntry = serde_json::from_str(line)?;
+                store.import_cmd_entry_exact(&entry)?;
+                cmd_count += 1;
+            }
+            Some("ssh_host") => {
+                let entry: db::model::SshHostEntry = serde_json::from_str(line)?;
+                store.import_ssh_entry_exact(&entry)?;
+                ssh_count += 1;
+            }
+            other => {
+                eprintln!("Warning: unknown entry type {:?}, skipping", other);
+            }
+        }
+    }
+
+    eprintln!(
+        "Restored {} directories, {} commands, {} SSH hosts from {}",
+        dir_count, cmd_count, ssh_count, file_path
+    );
+    Ok(())
+}
+
+fn cmd_export(file: Option<String>) -> Result<()> {
+    use std::io::Write;
+
+    let db_path = util::db_path()?;
+    let store = db::store::Store::open(&db_path)?;
+
+    let (dirs, cmds, hosts) = store.export_all_raw()?;
+
+    let mut writer: Box<dyn Write> = match &file {
+        Some(path) => Box::new(std::fs::File::create(path)?),
+        None => Box::new(std::io::stdout()),
+    };
+
+    for d in &dirs {
+        let mut obj = serde_json::to_value(d)?;
+        obj["type"] = serde_json::Value::String("directory".to_string());
+        writeln!(writer, "{}", serde_json::to_string(&obj)?)?;
+    }
+    for c in &cmds {
+        let mut obj = serde_json::to_value(c)?;
+        obj["type"] = serde_json::Value::String("command".to_string());
+        writeln!(writer, "{}", serde_json::to_string(&obj)?)?;
+    }
+    for h in &hosts {
+        let mut obj = serde_json::to_value(h)?;
+        obj["type"] = serde_json::Value::String("ssh_host".to_string());
+        writeln!(writer, "{}", serde_json::to_string(&obj)?)?;
+    }
+
+    if let Some(path) = &file {
+        eprintln!(
+            "Exported {} directories, {} commands, {} SSH hosts to {}",
+            dirs.len(), cmds.len(), hosts.len(), path
+        );
+    }
+
+    Ok(())
+}
+
+fn cmd_demo() -> Result<()> {
+    let db_path = util::db_path()?;
+    let mut store = db::store::Store::open(&db_path)?;
+
+    let now = chrono::Utc::now().timestamp();
+
+    store.clear_all()?;
+
+    for d in &demo::demo_directories(now) {
+        store.import_dir_entry_exact(d)?;
+    }
+    for c in &demo::demo_commands(now) {
+        store.import_cmd_entry_exact(c)?;
+    }
+    for h in &demo::demo_ssh_hosts(now) {
+        store.import_ssh_entry_exact(h)?;
+    }
+
+    let dirs = demo::demo_directories(now).len();
+    let cmds = demo::demo_commands(now).len();
+    let hosts = demo::demo_ssh_hosts(now).len();
+    eprintln!(
+        "Generated demo data: {} directories, {} commands, {} SSH hosts",
+        dirs, cmds, hosts
     );
     Ok(())
 }
@@ -336,7 +461,7 @@ fn cmd_setup(force: bool) -> Result<()> {
     if import_recently_done() {
         eprintln!("Import was done less than an hour ago, skipping.");
     } else if ask_yes_no("Import shell history and SSH config?") {
-        cmd_import(Some(shell.clone()))?;
+        cmd_import(Some(shell.clone()), None)?;
         write_import_marker();
     } else {
         eprintln!("Skipping import.");

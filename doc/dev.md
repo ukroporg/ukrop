@@ -36,6 +36,7 @@ src/
   cli.rs           — clap CLI definition
   lib.rs           — library: module re-exports and run() with subcommand dispatch
   config.rs        — TOML configuration file, theme/layout structs, save support
+  demo.rs          — demo data generation for screencasts
   util.rs          — XDG paths, path helpers
   frecency.rs      — frecency scoring (exponential decay)
   db/
