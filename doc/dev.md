@@ -71,8 +71,8 @@ doc/website/       — static site for ukrop.org (plain HTML/CSS/JS, no build st
 ### Homebrew
 
 ```sh
-brew tap gupalo/tap https://github.com/gupalo/homebrew-tap
-brew install gupalo/tap/ukrop
+brew tap ukroporg/tap https://github.com/ukroporg/homebrew-tap
+brew install ukroporg/tap/ukrop
 ```
 
 Formula template at `packaging/homebrew/ukrop.rb`.

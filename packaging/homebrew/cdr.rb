@@ -1,7 +1,7 @@
 class Ukrop < Formula
   desc "Quick directory jumping & command execution with fuzzy TUI"
-  homepage "https://github.com/gupalo/ukrop"
-  url "https://github.com/gupalo/ukrop/archive/refs/tags/v0.1.0.tar.gz"
+  homepage "https://github.com/ukroporg/ukrop"
+  url "https://github.com/ukroporg/ukrop/archive/refs/tags/v0.1.0.tar.gz"
   sha256 "PLACEHOLDER"
   license "MIT"
 

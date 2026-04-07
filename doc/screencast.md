@@ -30,7 +30,7 @@ Voice: "We all do this dozens of times a day. There's a faster way."
 ## Scene 2: Install & Setup (0:20 - 0:50)
 
 ```sh
-brew install gupalo/tap/ukrop
+brew install ukroporg/tap/ukrop
 ukrop setup
 ```
 

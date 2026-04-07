@@ -45,8 +45,8 @@ Tracks usage via shell hooks with a frecency-scored SQLite database.
 ### Homebrew (macOS/Linux)
 
 ```sh
-brew tap gupalo/tap https://github.com/gupalo/homebrew-tap
-brew install gupalo/tap/ukrop
+brew tap ukroporg/tap https://github.com/ukroporg/homebrew-tap
+brew install ukroporg/tap/ukrop
 ```
 
 ### From source
