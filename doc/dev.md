@@ -63,6 +63,7 @@ src/
     config_dialog.rs — in-TUI config editor modal (field types, navigation, validation)
 tests/             — integration tests
 packaging/         — Homebrew formula and deb packaging
+doc/website/       — static site for ukrop.org (plain HTML/CSS/JS, no build step)
 ```
 
 ## Packaging

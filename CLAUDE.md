@@ -33,6 +33,7 @@ source "$HOME/.cargo/env"
 - `tests/` — Integration tests (cli, frecency, history parsing)
 - `tests/fixtures/` — Sample history files for tests
 - `packaging/` — Homebrew formula and deb postinst
+- `doc/website/` — Static multipage site for ukrop.org (pure HTML/CSS/JS, no build step). Deployable via GitHub Pages with the bundled `CNAME`.
 
 ## Rules
 
