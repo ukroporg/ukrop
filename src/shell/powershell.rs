@@ -28,7 +28,11 @@ if ($global:__ukrop_hooked -ne 1) {
             $cmd = $histItem.CommandLine
             $cwd = (Get-Location).ProviderPath
             $durationMs = [int]$histItem.Duration.TotalMilliseconds
-            & ukrop hook-cmd --cmd $cmd --exit-code $lastExit --cwd $cwd --duration-ms $durationMs 2>$null
+            $hookErr = & ukrop hook-cmd --cmd $cmd --exit-code $lastExit --cwd $cwd --duration-ms $durationMs 2>&1
+            if ($LASTEXITCODE -ne 0 -and -not $global:__ukrop_hook_warned) {
+                $global:__ukrop_hook_warned = $true
+                Write-Warning "ukrop: command tracking error: $hookErr"
+            }
         }
 
         __ukrop_hook

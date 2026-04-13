@@ -1,8 +1,11 @@
 pub fn init_script() -> &'static str {
     r#"
 # ukrop shell integration for zsh
+__ukrop_hook_err="${TMPDIR:-/tmp}/ukrop-hook-$$.err"
+__ukrop_hook_warned=0
+
 __ukrop_hook() {
-    command ukrop hook -- "$PWD"
+    command ukrop hook -- "$PWD" 2>/dev/null
 }
 
 __ukrop_preexec() {
@@ -19,8 +22,13 @@ __ukrop_precmd() {
             duration_ms=$(( ($SECONDS - __ukrop_cmd_start) * 1000 ))
             duration_ms=${duration_ms%.*}
         fi
-        command ukrop hook-cmd --cmd "$__ukrop_last_cmd" --exit-code "$exit_code" --cwd "$PWD" ${duration_ms:+--duration-ms "$duration_ms"} &>/dev/null &!
+        command ukrop hook-cmd --cmd "$__ukrop_last_cmd" --exit-code "$exit_code" --cwd "$PWD" ${duration_ms:+--duration-ms} ${duration_ms:+"$duration_ms"} 2>>"$__ukrop_hook_err" &!
         unset __ukrop_last_cmd __ukrop_cmd_start
+    fi
+    if (( __ukrop_hook_warned == 0 )) && [[ -s "$__ukrop_hook_err" ]]; then
+        __ukrop_hook_warned=1
+        echo "ukrop: command tracking error (see $__ukrop_hook_err):" >&2
+        head -5 "$__ukrop_hook_err" >&2
     fi
 }
 

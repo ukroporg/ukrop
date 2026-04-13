@@ -3,6 +3,8 @@ pub fn init_script() -> &'static str {
 # ukrop shell integration for bash
 __ukrop_last_cmd=""
 __ukrop_cmd_start=""
+__ukrop_hook_err="${TMPDIR:-/tmp}/ukrop-hook-$$.err"
+__ukrop_hook_warned=0
 __ukrop_preexec() {
     __ukrop_last_cmd="$(HISTTIMEFORMAT= history 1 | sed 's/^[ ]*[0-9]*[ ]*//')"
     __ukrop_cmd_start=$SECONDS
@@ -11,16 +13,21 @@ trap '__ukrop_preexec' DEBUG
 
 __ukrop_hook() {
     local exit_code=$?
-    command ukrop hook -- "$PWD"
+    command ukrop hook -- "$PWD" 2>/dev/null
     if [ -n "$__ukrop_last_cmd" ]; then
         local duration_args=""
         if [ -n "$__ukrop_cmd_start" ]; then
             local duration_ms=$(( (SECONDS - __ukrop_cmd_start) * 1000 ))
             duration_args="--duration-ms $duration_ms"
         fi
-        { command ukrop hook-cmd --cmd "$__ukrop_last_cmd" --exit-code "$exit_code" --cwd "$PWD" $duration_args &>/dev/null & disown; } 2>/dev/null
+        { command ukrop hook-cmd --cmd "$__ukrop_last_cmd" --exit-code "$exit_code" --cwd "$PWD" $duration_args 2>>"$__ukrop_hook_err" & disown; } 2>/dev/null
         __ukrop_last_cmd=""
         __ukrop_cmd_start=""
+    fi
+    if [ "$__ukrop_hook_warned" = "0" ] && [ -s "$__ukrop_hook_err" ]; then
+        __ukrop_hook_warned=1
+        echo "ukrop: command tracking error (see $__ukrop_hook_err):" >&2
+        head -5 "$__ukrop_hook_err" >&2
     fi
 }
 

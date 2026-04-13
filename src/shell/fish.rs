@@ -1,13 +1,21 @@
 pub fn init_script() -> &'static str {
     r#"
 # ukrop shell integration for fish
+set -g __ukrop_hook_err (mktemp -t ukrop-hook.XXXXXX)
+set -g __ukrop_hook_warned 0
+
 function __ukrop_hook --on-variable PWD
-    command ukrop hook -- "$PWD"
+    command ukrop hook -- "$PWD" 2>/dev/null
 end
 
 function __ukrop_postexec --on-event fish_postexec
     set -l exit_code $status
-    command ukrop hook-cmd --cmd "$argv[1]" --exit-code "$exit_code" --cwd "$PWD" --duration-ms "$CMD_DURATION" &>/dev/null &
+    command ukrop hook-cmd --cmd "$argv[1]" --exit-code "$exit_code" --cwd "$PWD" --duration-ms "$CMD_DURATION" 2>>$__ukrop_hook_err &
+    if test "$__ukrop_hook_warned" = "0"; and test -s "$__ukrop_hook_err"
+        set -g __ukrop_hook_warned 1
+        echo "ukrop: command tracking error (see $__ukrop_hook_err):" >&2
+        head -5 "$__ukrop_hook_err" >&2
+    end
 end
 
 function ukrop

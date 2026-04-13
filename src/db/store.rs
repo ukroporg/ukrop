@@ -10,8 +10,20 @@ pub struct Store {
 
 impl Store {
     pub fn open(path: &str) -> Result<Self> {
-        let conn = Connection::open(path)?;
-        conn.pragma_update(None, "journal_mode", "WAL")?;
+        let conn = Connection::open(path).map_err(|e| {
+            if let Some(hint) = check_macos_provenance(path) {
+                anyhow::anyhow!("{}\n\n{}", e, hint)
+            } else {
+                anyhow::anyhow!("{}", e)
+            }
+        })?;
+        conn.pragma_update(None, "journal_mode", "WAL").map_err(|e| {
+            if let Some(hint) = check_macos_provenance(path) {
+                anyhow::anyhow!("{}\n\n{}", e, hint)
+            } else {
+                anyhow::anyhow!("{}", e)
+            }
+        })?;
         conn.pragma_update(None, "busy_timeout", 5000)?;
         super::migrate::run(&conn)?;
         Ok(Store { conn })
@@ -798,6 +810,33 @@ impl Store {
     fn age_ssh_hosts_in(conn: &rusqlite::Connection) -> Result<()> {
         Self::age_table_in(conn, "ssh_hosts")
     }
+}
+
+/// Check if macOS `com.apple.provenance` extended attribute is blocking DB access.
+/// Returns an actionable hint if detected, None otherwise.
+fn check_macos_provenance(db_path: &str) -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        let parent = std::path::Path::new(db_path).parent()?;
+        let output = std::process::Command::new("xattr")
+            .arg(parent)
+            .output()
+            .ok()?;
+        let attrs = String::from_utf8_lossy(&output.stdout);
+        if attrs.contains("com.apple.provenance") {
+            let parent_escaped = parent.to_string_lossy().replace(' ', "\\ ");
+            return Some(format!(
+                "macOS quarantine attribute is blocking database access.\n\
+                 Fix: run these commands, then restart your shell:\n\
+                 \n\
+                   xattr -r -d com.apple.provenance {}\n\
+                   xattr -d com.apple.provenance ~/.cargo/bin/ukrop ~/.cargo/bin/u",
+                parent_escaped
+            ));
+        }
+    }
+    let _ = db_path;
+    None
 }
 
 /// Extract the SSH target (user@host or host) from ssh command args,
