@@ -16,7 +16,8 @@ Tracks usage via shell hooks with a frecency-scored SQLite database.
 - **Import from shell history** — bootstrap your database from existing bash, zsh, fish, or PowerShell history
 - **Configuration file** — optional `~/.config/ukrop/config.toml` for ignore patterns, scoring weights, cleanup
   settings, themes, and layout
-- **In-TUI config editor** — press F2 or run `ukrop config` to edit settings with live preview
+- **In-TUI command editor** — press F2 to edit the selected command before executing
+- **In-TUI config editor** — press F9 or run `ukrop config` to edit settings with live preview
 - **Non-interactive mode** — `ukrop cd <query>` prints best match when stdout is not a TTY (for scripts)
 - **Auto-cleanup** — stale missing directories are automatically pruned
 
@@ -36,7 +37,7 @@ Tracks usage via shell hooks with a frecency-scored SQLite database.
 ├──────────────┴───────────────────────────────────────────┤
 │  Path: ~/myapp  │  Visits: 42  │  Last: 2h ago  │ exists │
 ├──────────────────────────────────────────────────────────┤
-│ F1 help  F2 config  Tab  Enter run  ^F fav  ^Del  Esc    │
+│ F1 help  F2 edit  F9 config  Tab  Enter  ^F fav  ^Del Esc │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -115,7 +116,8 @@ For manual setup and detailed usage, see [doc/usage.md](doc/usage.md).
 | Ctrl+U       | Clear search input                   |
 | Ctrl+Y       | Copy to clipboard                    |
 | F1           | Show help                            |
-| F2           | Open config editor                   |
+| F2           | Edit selected command                |
+| F9           | Open config editor                   |
 | Esc / Ctrl+C | Cancel                               |
 
 ## License

@@ -223,7 +223,8 @@ Press **F1** inside the TUI to show the help overlay with all shortcuts.
 | Ctrl+U       | Clear search                  |
 | Ctrl+C / D   | Quit                          |
 | F1           | Show help overlay             |
-| F2           | Open config editor            |
+| F2           | Edit selected command         |
+| F9           | Open config editor            |
 
 ## Configuration
 
@@ -262,8 +263,8 @@ cd_panel_pct = 75          # cd panel height percentage within left column (10-9
 
 ### In-TUI config editor
 
-Press **F2** inside the TUI or run `ukrop config` to open the config editor as a modal overlay. Changes are previewed
-live (theme and layout changes update the background panels in real-time). Press **F2** or **Ctrl+S** to save, **Esc**
+Press **F9** inside the TUI or run `ukrop config` to open the config editor as a modal overlay. Changes are previewed
+live (theme and layout changes update the background panels in real-time). Press **F9** or **Ctrl+S** to save, **Esc**
 to cancel and revert.
 
 ### Theme presets

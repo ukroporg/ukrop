@@ -8,6 +8,7 @@ use ratatui::Frame;
 
 use super::app::{AppState, PanelState, PickerMode};
 use super::config_dialog::{ConfigDialog, FieldKind};
+use super::edit_dialog::EditDialog;
 use super::theme::Theme;
 
 fn format_relative_time(ts: i64) -> String {
@@ -422,7 +423,7 @@ pub fn draw(f: &mut Frame, state: &mut AppState) {
     } else {
         Line::from(vec![
             Span::styled(
-                " F1 help  F2 config  Tab  Up/Down  Enter run  S-Enter edit  ^Y copy  ^F fav  ^W cwd  ^Del delete  Esc quit",
+                " F1 help  F2 edit  F9 config  Tab  Up/Down  Enter run  S-Enter paste  ^Y copy  ^F fav  ^W cwd  ^Del del  Esc quit",
                 status_hint,
             ),
         ])
@@ -433,6 +434,11 @@ pub fn draw(f: &mut Frame, state: &mut AppState) {
     // Config dialog overlay
     if let Some(ref dialog) = state.show_config {
         draw_config(f, dialog, &theme_copy);
+    }
+
+    // Edit dialog overlay
+    if let Some(ref dialog) = state.edit_dialog {
+        draw_edit_dialog(f, dialog, &theme_copy);
     }
 
     // Help overlay
@@ -579,7 +585,7 @@ fn draw_config(f: &mut Frame, dialog: &ConfigDialog, theme: &Theme) {
 
     lines.push(Line::from(""));
     lines.push(Line::from(vec![
-        Span::styled("  F2", theme.dialog_key),
+        Span::styled("  F9", theme.dialog_key),
         Span::styled("/", theme.dialog_desc),
         Span::styled("^S", theme.dialog_key),
         Span::styled(" save   ", theme.dialog_desc),
@@ -644,10 +650,107 @@ fn shorten_path(path: &str, max: usize) -> String {
     truncate_path(path, max)
 }
 
+fn draw_edit_dialog(f: &mut Frame, dialog: &EditDialog, theme: &Theme) {
+    let area = f.area();
+    let dialog_width: u16 = 72.min(area.width.saturating_sub(4));
+    let dialog_height: u16 = 14.min(area.height.saturating_sub(2)); // 10 content + 2 borders + 2 footer
+    let x = area.width.saturating_sub(dialog_width) / 2;
+    let y = area.height.saturating_sub(dialog_height) / 2;
+    let popup = ratatui::layout::Rect::new(x, y, dialog_width, dialog_height);
+
+    f.render_widget(Clear, popup);
+
+    let inner_width = (dialog_width as usize).saturating_sub(4); // borders + padding
+    let content_height = (dialog_height as usize).saturating_sub(4); // borders + footer
+
+    // Wrap the command text into lines for display
+    let chars: Vec<char> = dialog.text.chars().collect();
+    let mut lines: Vec<Line> = Vec::new();
+
+    // Build the text with cursor
+    let before: String = chars[..dialog.cursor].iter().collect();
+    let cursor_ch: String = chars.get(dialog.cursor).map(|c| c.to_string()).unwrap_or_else(|| " ".to_string());
+    let after: String = if dialog.cursor < chars.len() { chars[dialog.cursor + 1..].iter().collect() } else { String::new() };
+    let full_display = format!("{}{}{}", before, cursor_ch, after);
+
+    // Wrap into lines
+    let display_chars: Vec<char> = full_display.chars().collect();
+    let cursor_in_display = dialog.cursor;
+    let mut pos = 0;
+    let mut cursor_line = 0;
+    let mut cursor_col = 0;
+    let mut wrapped: Vec<String> = Vec::new();
+    while pos < display_chars.len() {
+        let end = (pos + inner_width).min(display_chars.len());
+        let line_text: String = display_chars[pos..end].iter().collect();
+        if cursor_in_display >= pos && cursor_in_display < end {
+            cursor_line = wrapped.len();
+            cursor_col = cursor_in_display - pos;
+        } else if cursor_in_display == display_chars.len() && end == display_chars.len() {
+            cursor_line = wrapped.len();
+            cursor_col = end - pos;
+        }
+        wrapped.push(line_text);
+        pos = end;
+    }
+    if wrapped.is_empty() {
+        wrapped.push(String::new());
+    }
+
+    let text_style = theme.dialog_desc;
+    let cursor_style = Style::default().fg(Color::Black).bg(Color::White);
+
+    for (i, line_text) in wrapped.iter().enumerate() {
+        if i >= content_height {
+            break;
+        }
+        if i == cursor_line {
+            // Render this line with the cursor highlighted
+            let line_chars: Vec<char> = line_text.chars().collect();
+            let before_c: String = line_chars[..cursor_col.min(line_chars.len())].iter().collect();
+            let c_ch: String = line_chars.get(cursor_col).map(|c| c.to_string()).unwrap_or_else(|| " ".to_string());
+            let after_c: String = if cursor_col < line_chars.len() { line_chars[cursor_col + 1..].iter().collect() } else { String::new() };
+            lines.push(Line::from(vec![
+                Span::styled("  ", text_style),
+                Span::styled(before_c, text_style),
+                Span::styled(c_ch, cursor_style),
+                Span::styled(after_c, text_style),
+            ]));
+        } else {
+            lines.push(Line::from(vec![
+                Span::styled("  ", text_style),
+                Span::styled(line_text.clone(), text_style),
+            ]));
+        }
+    }
+
+    // Pad remaining lines
+    while lines.len() < content_height {
+        lines.push(Line::from(""));
+    }
+
+    // Footer
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![
+        Span::styled("  Enter", theme.dialog_key),
+        Span::styled(" execute   ", theme.dialog_desc),
+        Span::styled("Esc", theme.dialog_key),
+        Span::styled(" cancel", theme.dialog_desc),
+    ]));
+
+    let edit = Paragraph::new(lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(theme.dialog_border)
+            .title(Span::styled(" Edit Command ", theme.section_header)),
+    );
+    f.render_widget(edit, popup);
+}
+
 fn draw_help(f: &mut Frame, theme: &Theme) {
     let area = f.area();
     let help_width: u16 = 54;
-    let help_height: u16 = 23;
+    let help_height: u16 = 24;
     let x = area.width.saturating_sub(help_width) / 2;
     let y = area.height.saturating_sub(help_height) / 2;
     let popup = ratatui::layout::Rect::new(x, y, help_width.min(area.width), help_height.min(area.height));
@@ -678,7 +781,8 @@ fn draw_help(f: &mut Frame, theme: &Theme) {
         Line::from(vec![Span::styled("  Ctrl+Del    ", key_style), Span::styled("Delete entry", desc_style)]),
         Line::from(vec![Span::styled("  Ctrl+U      ", key_style), Span::styled("Clear search", desc_style)]),
         Line::from(vec![Span::styled("  Ctrl+C/D    ", key_style), Span::styled("Quit", desc_style)]),
-        Line::from(vec![Span::styled("  F2          ", key_style), Span::styled("Open config editor", desc_style)]),
+        Line::from(vec![Span::styled("  F2          ", key_style), Span::styled("Edit selected command", desc_style)]),
+        Line::from(vec![Span::styled("  F9          ", key_style), Span::styled("Open config editor", desc_style)]),
         Line::from(""),
         Line::from(Span::styled("  Press any key to close", Style::default().fg(Color::DarkGray))),
     ];

@@ -6,6 +6,7 @@ use std::fs::File;
 use std::time::Instant;
 
 use super::config_dialog::ConfigDialog;
+use super::edit_dialog::EditDialog;
 use super::fuzzy::FuzzyMatcher;
 use super::input::handle_key;
 use super::theme::Theme;
@@ -62,6 +63,8 @@ pub enum Action {
     ToggleHelp,
     ToggleConfig,
     SaveConfig,
+    EditCommand,
+    ExecuteEdit,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -236,6 +239,7 @@ pub struct AppState {
     pub config: Config,
     pub backup_config: Option<Config>,
     pub open_config_mode: bool,
+    pub edit_dialog: Option<EditDialog>,
 }
 
 impl AppState {
@@ -353,6 +357,7 @@ pub fn run(
         config: cfg.clone(),
         backup_config: if open_config { Some(cfg) } else { None },
         open_config_mode: open_config,
+        edit_dialog: None,
     };
 
     if !state.query.is_empty() {
@@ -461,6 +466,22 @@ pub fn run(
                     Action::Delete => {
                         if state.active_panel().selected_index().is_some() {
                             state.confirm_delete = true;
+                        }
+                    }
+                    Action::EditCommand => {
+                        let panel = state.active_panel();
+                        if let Some(idx) = panel.selected_index() {
+                            let entry = &panel.items[idx];
+                            let text = entry.connect_value.as_ref()
+                                .unwrap_or(&entry.value)
+                                .clone();
+                            state.edit_dialog = Some(EditDialog::new(text));
+                        }
+                    }
+                    Action::ExecuteEdit => {
+                        if let Some(dialog) = state.edit_dialog.take() {
+                            let panel = state.active_panel();
+                            return Ok(Some((panel.mode, dialog.text, false)));
                         }
                     }
                     Action::ToggleHelp => {

@@ -1,5 +1,6 @@
 mod app;
 pub mod config_dialog;
+pub mod edit_dialog;
 mod fuzzy;
 mod input;
 pub mod theme;

@@ -29,7 +29,7 @@ source "$HOME/.cargo/env"
 - `src/config.rs` — TOML config file (`~/.config/ukrop/config.toml`), ignore patterns, scoring weights, theme/layout config, save support
 - `src/history/` — Shell history parsers (bash.rs, zsh.rs, fish.rs, powershell.rs)
 - `src/shell/` — Shell init script templates (bash.rs, zsh.rs, fish.rs, powershell.rs)
-- `src/tui/` — Terminal UI: 3-panel layout (configurable ratios, default cd 25%×75%, run 75%×100%, ssh 25%×25%) with shared search bar and cursor-enabled input (app.rs state machine, ui.rs rendering, input.rs keys, fuzzy.rs matcher, tty_reader.rs input parsing, theme.rs color theming, config_dialog.rs in-TUI config editor)
+- `src/tui/` — Terminal UI: 3-panel layout (configurable ratios, default cd 25%×75%, run 75%×100%, ssh 25%×25%) with shared search bar and cursor-enabled input (app.rs state machine, ui.rs rendering, input.rs keys, fuzzy.rs matcher, tty_reader.rs input parsing, theme.rs color theming, config_dialog.rs in-TUI config editor, edit_dialog.rs in-TUI command editor)
 - `tests/` — Integration tests (cli, frecency, history parsing)
 - `tests/fixtures/` — Sample history files for tests
 - `packaging/` — Homebrew formula and deb postinst
@@ -49,7 +49,8 @@ source "$HOME/.cargo/env"
 - SQLite DB at `~/Library/Application Support/ukrop/ukrop.db` (macOS) or `~/.local/share/ukrop/ukrop.db` (Linux) with WAL mode. Override via `UKROP_DB_PATH` env var.
 - Shell integration: `eval "$(ukrop init zsh)"` installs a precmd hook and `ukrop` wrapper function. Shell hooks capture command duration (via `$SECONDS` in bash/zsh, `$CMD_DURATION` in fish, `Get-History` Duration in PowerShell).
 - Optional config at `~/.config/ukrop/config.toml` — ignore patterns, scoring weights, cleanup settings, theme presets (Default/Light/Nord/Solarized/Monochrome), layout ratios. Override via `UKROP_CONFIG_PATH`.
-- In-TUI config editor accessible via F2 key or `ukrop config` subcommand. Live preview of theme/layout changes; Esc cancels, F2/Ctrl+S saves.
+- In-TUI command editor accessible via F2 key — opens a 10-line dialog pre-filled with the selected command for editing before execution.
+- In-TUI config editor accessible via F9 key or `ukrop config` subcommand. Live preview of theme/layout changes; Esc cancels, F9/Ctrl+S saves.
 - Non-interactive mode: `ukrop cd <query>` prints best match when stdout is not a TTY.
 - Auto-cleanup removes stale missing directories (configurable, default 90 days).
 

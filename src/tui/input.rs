@@ -3,6 +3,34 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::app::{Action, AppState};
 
 pub fn handle_key(key: KeyEvent, state: &mut AppState) -> Action {
+    // Edit dialog intercepts all keys when open
+    if let Some(ref mut dialog) = state.edit_dialog {
+        return match key.code {
+            KeyCode::Esc => {
+                state.edit_dialog = None;
+                Action::Continue
+            }
+            KeyCode::Enter => Action::ExecuteEdit,
+            KeyCode::Left => { dialog.move_left(); Action::Continue }
+            KeyCode::Right => { dialog.move_right(); Action::Continue }
+            KeyCode::Home => { dialog.move_home(); Action::Continue }
+            KeyCode::End => { dialog.move_end(); Action::Continue }
+            KeyCode::Char('a') if key.modifiers.contains(KeyModifiers::CONTROL) => { dialog.move_home(); Action::Continue }
+            KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => { dialog.move_end(); Action::Continue }
+            KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) => { dialog.move_left(); Action::Continue }
+            KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => { dialog.move_right(); Action::Continue }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => { dialog.clear(); Action::Continue }
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                state.edit_dialog = None;
+                Action::Continue
+            }
+            KeyCode::Backspace => { dialog.backspace(); Action::Continue }
+            KeyCode::Delete => { dialog.delete(); Action::Continue }
+            KeyCode::Char(c) if !c.is_control() => { dialog.insert(c); Action::Continue }
+            _ => Action::Continue,
+        };
+    }
+
     // Config dialog intercepts all keys when open
     if state.show_config.is_some() {
         return handle_config_key_wrapper(key, state);
@@ -22,7 +50,8 @@ pub fn handle_key(key: KeyEvent, state: &mut AppState) -> Action {
 
     match key.code {
         KeyCode::F(1) => Action::ToggleHelp,
-        KeyCode::F(2) => Action::ToggleConfig,
+        KeyCode::F(2) => Action::EditCommand,
+        KeyCode::F(9) => Action::ToggleConfig,
         KeyCode::Esc => Action::Quit,
         KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => Action::SelectEdit,
         KeyCode::Enter => Action::Select,
@@ -156,7 +185,7 @@ fn handle_config_key_wrapper(key: KeyEvent, state: &mut AppState) -> Action {
             }
             Action::Continue
         }
-        KeyCode::F(2) => Action::SaveConfig,
+        KeyCode::F(9) => Action::SaveConfig,
         KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::SaveConfig,
         KeyCode::Up => { dialog.move_up(); Action::Continue }
         KeyCode::Down => { dialog.move_down(); Action::Continue }
