@@ -22,23 +22,23 @@ Tracks usage via shell hooks with a frecency-scored SQLite database.
 - **Auto-cleanup** — stale missing directories are automatically pruned
 
 ```text
-┌─ ukrop ──────────────────────────────────────────────────┐
-│ > search query_                                          │
-├──────────────┬───────────────────────────────────────────┤
-│  cd (3/12)   │  run (5/20)                               │
-│ > * ~/myapp  │ > git push origin main                    │
-│   ~/work     │   cargo build --release                   │
-│   ~/old      │   npm install                             │
-│              │   docker compose up                       │
-├──────────────┤                                           │
-│  ssh (2/4)   │                                           │
-│   prod-srv   │                                           │
-│   dev-box    │                                           │
-├──────────────┴───────────────────────────────────────────┤
-│  Path: ~/myapp  │  Visits: 42  │  Last: 2h ago  │ exists │
-├──────────────────────────────────────────────────────────┤
+┌─ ukrop ───────────────────────────────────────────────────┐
+│ > search query_                                           │
+├──────────────┬────────────────────────────────────────────┤
+│  cd (3/12)   │  run (5/20)                                │
+│ > * ~/myapp  │ > git push origin main                     │
+│   ~/work     │   cargo build --release                    │
+│   ~/old      │   npm install                              │
+│              │   docker compose up                        │
+├──────────────┤                                            │
+│  ssh (2/4)   │                                            │
+│   prod-srv   │                                            │
+│   dev-box    │                                            │
+├──────────────┴────────────────────────────────────────────┤
+│  Path: ~/myapp  │  Visits: 42  │  Last: 2h ago  │ exists  │
+├───────────────────────────────────────────────────────────┤
 │ F1 help  F2 edit  F9 config  Tab  Enter  ^F fav  ^Del Esc │
-└──────────────────────────────────────────────────────────┘
+└───────────────────────────────────────────────────────────┘
 ```
 
 ## Install
