@@ -19,6 +19,7 @@ pub fn read_key(reader: &mut impl Read) -> std::io::Result<KeyEvent> {
         13 => key(KeyCode::Enter, KeyModifiers::NONE),
         14 => key(KeyCode::Char('n'), KeyModifiers::CONTROL),
         16 => key(KeyCode::Char('p'), KeyModifiers::CONTROL),
+        19 => key(KeyCode::Char('s'), KeyModifiers::CONTROL),
         21 => key(KeyCode::Char('u'), KeyModifiers::CONTROL),
         23 => key(KeyCode::Char('w'), KeyModifiers::CONTROL),
         25 => key(KeyCode::Char('y'), KeyModifiers::CONTROL),
@@ -131,6 +132,10 @@ fn read_csi(reader: &mut impl Read) -> std::io::Result<KeyEvent> {
                 17 => key(KeyCode::F(6), KeyModifiers::NONE),
                 18 => key(KeyCode::F(7), KeyModifiers::NONE),
                 19 => key(KeyCode::F(8), KeyModifiers::NONE),
+                20 => key(KeyCode::F(9), KeyModifiers::NONE),
+                21 => key(KeyCode::F(10), KeyModifiers::NONE),
+                23 => key(KeyCode::F(11), KeyModifiers::NONE),
+                24 => key(KeyCode::F(12), KeyModifiers::NONE),
                 _ => key(KeyCode::Esc, KeyModifiers::NONE),
             }
         }
@@ -262,6 +267,29 @@ mod tests {
     fn test_csi_end() {
         let k = parse(&[27, b'[', b'F']);
         assert_eq!(k.code, KeyCode::End);
+        assert_eq!(k.modifiers, KeyModifiers::NONE);
+    }
+
+    #[test]
+    fn test_ctrl_s() {
+        let k = parse(&[19]);
+        assert_eq!(k.code, KeyCode::Char('s'));
+        assert_eq!(k.modifiers, KeyModifiers::CONTROL);
+    }
+
+    #[test]
+    fn test_csi_f9() {
+        // ESC [ 2 0 ~
+        let k = parse(&[27, b'[', b'2', b'0', b'~']);
+        assert_eq!(k.code, KeyCode::F(9));
+        assert_eq!(k.modifiers, KeyModifiers::NONE);
+    }
+
+    #[test]
+    fn test_csi_f12() {
+        // ESC [ 2 4 ~
+        let k = parse(&[27, b'[', b'2', b'4', b'~']);
+        assert_eq!(k.code, KeyCode::F(12));
         assert_eq!(k.modifiers, KeyModifiers::NONE);
     }
 
