@@ -226,6 +226,13 @@ Press **F1** inside the TUI to show the help overlay with all shortcuts.
 | F2           | Edit selected command         |
 | F9           | Open config editor            |
 
+### Terminal Compatibility
+
+Some shortcuts depend on the terminal emulator's ability to send extended key sequences:
+
+- **Shift+Enter** requires the [kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/). Terminals that support it include kitty, WezTerm, foot, and Ghostty. Standard terminals (macOS Terminal.app, older GNOME Terminal) send the same byte for `Enter` and `Shift+Enter`, so the shortcut has no effect there. Use `F2` as an alternative to open the command editor.
+- **Ctrl+Delete** requires the terminal to send a CSI modifier sequence (`ESC[3;5~`). Some terminals (notably macOS Terminal.app) send a plain `Delete` even with Ctrl held. As a fallback, pressing `Delete` when the search bar is empty also deletes the selected entry.
+
 ## Configuration
 
 Ukrop supports an optional TOML configuration file at `~/.config/ukrop/config.toml`. Override the path with the

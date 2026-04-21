@@ -120,6 +120,8 @@ For manual setup and detailed usage, see [doc/usage.md](doc/usage.md).
 | F9           | Open config editor                   |
 | Esc / Ctrl+C | Cancel                               |
 
+> **Note:** `Shift+Enter` and `Ctrl+Del` require a modern terminal with extended key sequence support (kitty, WezTerm, foot, Ghostty). Alternatives: `F2` for command editing, plain `Delete` for entry deletion. See [doc/usage.md](doc/usage.md#terminal-compatibility) for details.
+
 ## License
 
 MIT
