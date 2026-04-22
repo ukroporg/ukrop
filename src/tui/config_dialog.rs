@@ -77,6 +77,11 @@ impl ConfigDialog {
                 kind: FieldKind::Uint { value: cfg.layout.cd_panel_pct.to_string() },
             },
             ConfigField {
+                label: "confirm_delete",
+                section: "Behavior",
+                kind: FieldKind::Bool { value: cfg.confirm_delete },
+            },
+            ConfigField {
                 label: "ignore_patterns",
                 section: "Ignore Patterns",
                 kind: FieldKind::StringList {
@@ -141,6 +146,9 @@ impl ConfigDialog {
                         return Err(format!("cd_panel_pct must be 10-90, got {}", v));
                     }
                     cfg.layout.cd_panel_pct = v;
+                }
+                ("confirm_delete", FieldKind::Bool { value }) => {
+                    cfg.confirm_delete = *value;
                 }
                 ("ignore_patterns", FieldKind::StringList { items, .. }) => {
                     cfg.ignore_patterns = items.clone();

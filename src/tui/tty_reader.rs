@@ -1,5 +1,47 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::io::Read;
+use std::os::unix::io::AsRawFd;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Result of polling for a key: either a key was pressed, or a terminal resize occurred.
+pub enum PollResult {
+    Key(KeyEvent),
+    Resize,
+}
+
+/// Poll the tty fd for input, returning a key event or a resize signal.
+/// `resize_flag` is an AtomicBool set by a SIGWINCH handler.
+pub fn poll_key(reader: &mut std::fs::File, resize_flag: &AtomicBool) -> std::io::Result<PollResult> {
+    let fd = reader.as_raw_fd();
+    loop {
+        // Check if a resize happened
+        if resize_flag.swap(false, Ordering::Relaxed) {
+            return Ok(PollResult::Resize);
+        }
+
+        let mut pfd = libc::pollfd {
+            fd,
+            events: libc::POLLIN,
+            revents: 0,
+        };
+        // Poll with 100ms timeout so we can check the resize flag periodically
+        let ret = unsafe { libc::poll(&mut pfd as *mut _, 1, 100) };
+        if ret < 0 {
+            let err = std::io::Error::last_os_error();
+            if err.kind() == std::io::ErrorKind::Interrupted {
+                // EINTR from signal — check resize flag on next iteration
+                continue;
+            }
+            return Err(err);
+        }
+        if ret == 0 {
+            // Timeout — loop back to check resize flag
+            continue;
+        }
+        // Data available — read the key
+        return Ok(PollResult::Key(read_key(reader)?));
+    }
+}
 
 /// Read a key event directly from a file (typically /dev/tty).
 /// Bypasses crossterm's mio-based event system which fails in zle widget contexts.

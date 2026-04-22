@@ -257,6 +257,9 @@ prefix_bonus = 10000      # bonus for prefix matches (default: 10000)
 [cleanup]
 stale_days = 90            # auto-remove missing directories older than this (default: 90)
 
+# Ask for confirmation before deleting an entry (default: true)
+confirm_delete = true
+
 [theme]
 preset = "default"         # color theme: default, light, nord, solarized, monochrome
 selection_bold = true      # bold styling for selected items (default: true)

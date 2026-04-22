@@ -9,6 +9,7 @@ pub struct Config {
     pub cleanup: CleanupConfig,
     pub theme: ThemeConfig,
     pub layout: LayoutConfig,
+    pub confirm_delete: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,6 +109,7 @@ impl Default for Config {
             cleanup: CleanupConfig::default(),
             theme: ThemeConfig::default(),
             layout: LayoutConfig::default(),
+            confirm_delete: true,
         }
     }
 }

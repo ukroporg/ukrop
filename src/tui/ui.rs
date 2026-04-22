@@ -785,7 +785,7 @@ fn draw_edit_dialog(f: &mut Frame, dialog: &EditDialog, theme: &Theme) {
 fn draw_help(f: &mut Frame, theme: &Theme) {
     let area = f.area();
     let help_width: u16 = 54;
-    let help_height: u16 = 24;
+    let help_height: u16 = 25;
     let x = area.width.saturating_sub(help_width) / 2;
     let y = area.height.saturating_sub(help_height) / 2;
     let popup = ratatui::layout::Rect::new(x, y, help_width.min(area.width), help_height.min(area.height));
@@ -819,7 +819,10 @@ fn draw_help(f: &mut Frame, theme: &Theme) {
         Line::from(vec![Span::styled("  F2          ", key_style), Span::styled("Edit selected command", desc_style)]),
         Line::from(vec![Span::styled("  F9          ", key_style), Span::styled("Open config editor", desc_style)]),
         Line::from(""),
-        Line::from(Span::styled("  Press any key to close", Style::default().fg(Color::DarkGray))),
+        Line::from(Span::styled(
+            format!("  ukrop v{}  —  Press any key to close", env!("CARGO_PKG_VERSION")),
+            Style::default().fg(Color::DarkGray),
+        )),
     ];
 
     let help = Paragraph::new(lines).block(

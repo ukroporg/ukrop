@@ -3,6 +3,8 @@ use crossterm::terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::fs::File;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::time::Instant;
 
 use super::config_dialog::ConfigDialog;
@@ -10,6 +12,7 @@ use super::edit_dialog::EditDialog;
 use super::fuzzy::FuzzyMatcher;
 use super::input::handle_key;
 use super::theme::Theme;
+use super::tty_reader::PollResult;
 use super::ui::draw;
 use super::PickerEntry;
 use crate::config::Config;
@@ -364,13 +367,25 @@ pub fn run(
         state.update_all_filters();
     }
 
+    // Register SIGWINCH handler for terminal resize
+    let resize_flag = Arc::new(AtomicBool::new(false));
+    signal_hook::flag::register(signal_hook::consts::SIGWINCH, Arc::clone(&resize_flag))?;
+
     let result = (|| -> Result<Option<(PickerMode, String, bool)>> {
+        // Initial clear to start with a clean screen
+        terminal.clear()?;
         loop {
-            // Force full redraw to avoid ratatui diff artifacts
-            terminal.clear()?;
             terminal.draw(|f| draw(f, &mut state))?;
 
-            let key = super::tty_reader::read_key(&mut tty_read)?;
+            let key = match super::tty_reader::poll_key(&mut tty_read, &resize_flag)? {
+                PollResult::Key(k) => k,
+                PollResult::Resize => {
+                    // Auto-resize updates buffer to new terminal dimensions, then clear
+                    terminal.autoresize()?;
+                    terminal.clear()?;
+                    continue;
+                }
+            };
             if state.confirm_delete {
                 match handle_key(key, &mut state) {
                     Action::ConfirmDelete => {
@@ -465,7 +480,21 @@ pub fn run(
                     }
                     Action::Delete => {
                         if state.active_panel().selected_index().is_some() {
-                            state.confirm_delete = true;
+                            if state.config.confirm_delete {
+                                state.confirm_delete = true;
+                            } else {
+                                // Delete immediately without confirmation
+                                let panel = state.active_panel_mut();
+                                if let Some(idx) = panel.selected_index() {
+                                    let value = &panel.items[idx].value;
+                                    let _ = store.forget(value);
+                                    panel.items.remove(idx);
+                                    panel.display_texts =
+                                        panel.items.iter().map(|i| i.display.clone()).collect();
+                                    let query = state.query.clone();
+                                    state.active_panel_mut().update_filter(&query);
+                                }
+                            }
                         }
                     }
                     Action::EditCommand => {
