@@ -49,7 +49,7 @@ source "$HOME/.cargo/env"
 - SQLite DB at `~/Library/Application Support/ukrop/ukrop.db` (macOS) or `~/.local/share/ukrop/ukrop.db` (Linux) with WAL mode. Override via `UKROP_DB_PATH` env var.
 - Shell integration: `eval "$(ukrop init zsh)"` installs a precmd hook and `ukrop` wrapper function. Shell hooks capture command duration (via `$SECONDS` in bash/zsh, `$CMD_DURATION` in fish, `Get-History` Duration in PowerShell).
 - Optional config at `~/.config/ukrop/config.toml` — ignore patterns, scoring weights, cleanup settings, theme presets (Default/Light/Nord/Solarized/Monochrome), layout ratios. Override via `UKROP_CONFIG_PATH`.
-- In-TUI command editor accessible via F2 key — opens a 10-line dialog pre-filled with the selected command for editing before execution.
+- In-TUI command editor accessible via F2 key — opens a 10-line dialog pre-filled with the selected command for editing before execution. Enter inserts newline, F5 executes, Esc cancels. Supports Up/Down arrow navigation between lines.
 - In-TUI config editor accessible via F9 key or `ukrop config` subcommand. Live preview of theme/layout changes; Esc cancels, F9/Ctrl+S saves.
 - Non-interactive mode: `ukrop cd <query>` prints best match when stdout is not a TTY.
 - Auto-cleanup removes stale missing directories (configurable, default 90 days).

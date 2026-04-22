@@ -204,7 +204,7 @@ Press **F1** inside the TUI to show the help overlay with all shortcuts.
 | Key          | Action                        |
 |--------------|-------------------------------|
 | Enter        | Select and run immediately    |
-| Shift+Enter  | Paste to terminal for editing |
+| Shift+Enter / F5 | Paste to terminal for editing |
 | Ctrl+Y       | Copy to clipboard             |
 | Esc          | Quit                          |
 | Tab          | Next panel                    |
@@ -218,7 +218,7 @@ Press **F1** inside the TUI to show the help overlay with all shortcuts.
 | Ctrl+W       | Delete word backward          |
 | Ctrl+P / N   | Navigate up / down            |
 | Ctrl+F       | Toggle favorite               |
-| Ctrl+Del     | Delete entry                  |
+| F8 / Ctrl+Del | Delete entry                 |
 | Delete       | Delete char at cursor         |
 | Ctrl+U       | Clear search                  |
 | Ctrl+C / D   | Quit                          |
@@ -230,8 +230,8 @@ Press **F1** inside the TUI to show the help overlay with all shortcuts.
 
 Some shortcuts depend on the terminal emulator's ability to send extended key sequences:
 
-- **Shift+Enter** requires the [kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/). Terminals that support it include kitty, WezTerm, foot, and Ghostty. Standard terminals (macOS Terminal.app, older GNOME Terminal) send the same byte for `Enter` and `Shift+Enter`, so the shortcut has no effect there. Use `F2` as an alternative to open the command editor.
-- **Ctrl+Delete** requires the terminal to send a CSI modifier sequence (`ESC[3;5~`). Some terminals (notably macOS Terminal.app) send a plain `Delete` even with Ctrl held. As a fallback, pressing `Delete` when the search bar is empty also deletes the selected entry.
+- **Shift+Enter** requires the [kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/). Terminals that support it include kitty, WezTerm, foot, and Ghostty. Standard terminals (macOS Terminal.app, older GNOME Terminal) send the same byte for `Enter` and `Shift+Enter`, so the shortcut has no effect there. Use **F5** as a universal alternative for paste-to-terminal, or **F2** to open the in-TUI command editor.
+- **Ctrl+Delete** requires the terminal to send a CSI modifier sequence (`ESC[3;5~`). Some terminals (notably macOS Terminal.app) send a plain `Delete` even with Ctrl held. Use **F8** as a universal alternative, or press `Delete` when the search bar is empty.
 
 ## Configuration
 

@@ -272,16 +272,18 @@ pub fn draw(f: &mut Frame, state: &mut AppState) {
     f.render_widget(Clear, f.area());
 
     let theme = &state.theme;
-    let has_preview = state.active_panel().selected_index().is_some();
+    let compact = f.area().height < 40;
+    let has_preview = !compact && state.active_panel().selected_index().is_some();
     let preview_height = if has_preview { 3 } else { 0 };
+    let status_height: u16 = if compact { 0 } else { 1 };
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),              // search bar
-            Constraint::Min(1),                // panels
-            Constraint::Length(preview_height), // preview
-            Constraint::Length(1),              // status bar
+            Constraint::Length(3),                  // search bar
+            Constraint::Min(1),                    // panels
+            Constraint::Length(preview_height),     // preview
+            Constraint::Length(status_height),      // status bar
         ])
         .split(f.area());
 
@@ -374,8 +376,9 @@ pub fn draw(f: &mut Frame, state: &mut AppState) {
     draw_panel(f, left[1], &mut state.panels[2], active == 2, &query, &theme_copy, false);        // ssh
     draw_panel(f, cols[1], &mut state.panels[1], active == 1, &query, &theme_copy, cwd_filter);   // run
 
-    // Preview bar for selected item in active panel
+    // Preview bar for selected item in active panel (hidden in compact mode)
     let active_panel = state.active_panel();
+    if has_preview {
     if let Some(idx) = active_panel.selected_index() {
         let item = &active_panel.items[idx];
         let exists_str = match item.exists {
@@ -407,29 +410,32 @@ pub fn draw(f: &mut Frame, state: &mut AppState) {
             .block(Block::default().borders(Borders::TOP).title("Details"));
         f.render_widget(preview, chunks[2]);
     }
-
-    // Status bar — show flash message or default hints
-    let show_flash = state.flash_message.as_ref()
-        .map(|(_, t)| t.elapsed() < Duration::from_millis(1500))
-        .unwrap_or(false);
-    if !show_flash {
-        state.flash_message = None;
     }
 
-    let status_line = if let Some((msg, _)) = &state.flash_message {
-        Line::from(vec![
-            Span::styled(format!(" {}", msg), flash_style),
-        ])
-    } else {
-        Line::from(vec![
-            Span::styled(
-                " F1 help  F2 edit  F9 config  Tab  Up/Down  Enter run  S-Enter paste  ^Y copy  ^F fav  ^W cwd  ^Del del  Esc quit",
-                status_hint,
-            ),
-        ])
-    };
-    let status = Paragraph::new(status_line);
-    f.render_widget(status, chunks[3]);
+    // Status bar — show flash message or default hints (hidden in compact mode)
+    if !compact {
+        let show_flash = state.flash_message.as_ref()
+            .map(|(_, t)| t.elapsed() < Duration::from_millis(1500))
+            .unwrap_or(false);
+        if !show_flash {
+            state.flash_message = None;
+        }
+
+        let status_line = if let Some((msg, _)) = &state.flash_message {
+            Line::from(vec![
+                Span::styled(format!(" {}", msg), flash_style),
+            ])
+        } else {
+            Line::from(vec![
+                Span::styled(
+                    " F1 help  F2 edit  F5 paste  F8 del  F9 config  Tab  Up/Down  Enter run  ^Y copy  ^F fav  ^W cwd  Esc quit",
+                    status_hint,
+                ),
+            ])
+        };
+        let status = Paragraph::new(status_line);
+        f.render_widget(status, chunks[3]);
+    }
 
     // Config dialog overlay
     if let Some(ref dialog) = state.show_config {
@@ -667,31 +673,58 @@ fn draw_edit_dialog(f: &mut Frame, dialog: &EditDialog, theme: &Theme) {
     let chars: Vec<char> = dialog.text.chars().collect();
     let mut lines: Vec<Line> = Vec::new();
 
-    // Build the text with cursor
-    let before: String = chars[..dialog.cursor].iter().collect();
-    let cursor_ch: String = chars.get(dialog.cursor).map(|c| c.to_string()).unwrap_or_else(|| " ".to_string());
-    let after: String = if dialog.cursor < chars.len() { chars[dialog.cursor + 1..].iter().collect() } else { String::new() };
-    let full_display = format!("{}{}{}", before, cursor_ch, after);
-
-    // Wrap into lines
-    let display_chars: Vec<char> = full_display.chars().collect();
-    let cursor_in_display = dialog.cursor;
-    let mut pos = 0;
+    // Split by explicit newlines first, then wrap each line
+    let text_lines: Vec<String> = dialog.text.split('\n').map(|s| s.to_string()).collect();
+    let mut wrapped: Vec<String> = Vec::new();
     let mut cursor_line = 0;
     let mut cursor_col = 0;
-    let mut wrapped: Vec<String> = Vec::new();
-    while pos < display_chars.len() {
-        let end = (pos + inner_width).min(display_chars.len());
-        let line_text: String = display_chars[pos..end].iter().collect();
-        if cursor_in_display >= pos && cursor_in_display < end {
-            cursor_line = wrapped.len();
-            cursor_col = cursor_in_display - pos;
-        } else if cursor_in_display == display_chars.len() && end == display_chars.len() {
-            cursor_line = wrapped.len();
-            cursor_col = end - pos;
+    let mut char_pos = 0;
+    for (li, tline) in text_lines.iter().enumerate() {
+        let line_chars: Vec<char> = tline.chars().collect();
+        if line_chars.is_empty() {
+            if dialog.cursor == char_pos {
+                cursor_line = wrapped.len();
+                cursor_col = 0;
+            }
+            wrapped.push(String::new());
+        } else {
+            let mut pos = 0;
+            while pos < line_chars.len() {
+                let end = (pos + inner_width).min(line_chars.len());
+                let seg: String = line_chars[pos..end].iter().collect();
+                let abs_start = char_pos + pos;
+                let abs_end = char_pos + end;
+                if dialog.cursor >= abs_start && dialog.cursor < abs_end {
+                    cursor_line = wrapped.len();
+                    cursor_col = dialog.cursor - abs_start;
+                } else if dialog.cursor == abs_end && end == line_chars.len() && li == text_lines.len() - 1 {
+                    cursor_line = wrapped.len();
+                    cursor_col = end - pos;
+                }
+                wrapped.push(seg);
+                pos = end;
+            }
         }
-        wrapped.push(line_text);
-        pos = end;
+        char_pos += line_chars.len() + 1; // +1 for the newline
+    }
+    // Handle cursor at very end (after last newline)
+    if dialog.cursor == chars.len() && !text_lines.is_empty() {
+        let last_line = text_lines.last().unwrap();
+        if last_line.is_empty() || dialog.text.ends_with('\n') {
+            // cursor is on a new empty line after trailing newline
+            if dialog.text.ends_with('\n') && dialog.cursor == chars.len() {
+                cursor_line = wrapped.len().saturating_sub(1);
+                cursor_col = 0;
+                // Add empty line if text ends with newline and cursor is at end
+                if !wrapped.last().map(|s| s.is_empty()).unwrap_or(false) {
+                    wrapped.push(String::new());
+                    cursor_line = wrapped.len() - 1;
+                }
+            }
+        } else {
+            cursor_line = wrapped.len().saturating_sub(1);
+            cursor_col = wrapped.last().map(|s| s.chars().count()).unwrap_or(0);
+        }
     }
     if wrapped.is_empty() {
         wrapped.push(String::new());
@@ -732,8 +765,10 @@ fn draw_edit_dialog(f: &mut Frame, dialog: &EditDialog, theme: &Theme) {
     // Footer
     lines.push(Line::from(""));
     lines.push(Line::from(vec![
-        Span::styled("  Enter", theme.dialog_key),
+        Span::styled("  F5", theme.dialog_key),
         Span::styled(" execute   ", theme.dialog_desc),
+        Span::styled("Enter", theme.dialog_key),
+        Span::styled(" newline   ", theme.dialog_desc),
         Span::styled("Esc", theme.dialog_key),
         Span::styled(" cancel", theme.dialog_desc),
     ]));
@@ -765,7 +800,7 @@ fn draw_help(f: &mut Frame, theme: &Theme) {
         Line::from(Span::styled(" Keyboard Shortcuts", header_style)),
         Line::from(""),
         Line::from(vec![Span::styled("  Enter       ", key_style), Span::styled("Select and run", desc_style)]),
-        Line::from(vec![Span::styled("  Shift+Enter ", key_style), Span::styled("Paste to terminal for editing", desc_style)]),
+        Line::from(vec![Span::styled("  S+Enter/F5  ", key_style), Span::styled("Paste to terminal for editing", desc_style)]),
         Line::from(vec![Span::styled("  Esc         ", key_style), Span::styled("Quit", desc_style)]),
         Line::from(vec![Span::styled("  Tab         ", key_style), Span::styled("Next panel", desc_style)]),
         Line::from(vec![Span::styled("  Shift+Tab   ", key_style), Span::styled("Previous panel", desc_style)]),
@@ -778,7 +813,7 @@ fn draw_help(f: &mut Frame, theme: &Theme) {
         Line::from(vec![Span::styled("  Ctrl+P/N    ", key_style), Span::styled("Navigate up/down", desc_style)]),
         Line::from(vec![Span::styled("  Ctrl+Y      ", key_style), Span::styled("Copy to clipboard", desc_style)]),
         Line::from(vec![Span::styled("  Ctrl+F      ", key_style), Span::styled("Toggle favorite", desc_style)]),
-        Line::from(vec![Span::styled("  Ctrl+Del    ", key_style), Span::styled("Delete entry", desc_style)]),
+        Line::from(vec![Span::styled("  F8/Ctrl+Del ", key_style), Span::styled("Delete entry", desc_style)]),
         Line::from(vec![Span::styled("  Ctrl+U      ", key_style), Span::styled("Clear search", desc_style)]),
         Line::from(vec![Span::styled("  Ctrl+C/D    ", key_style), Span::styled("Quit", desc_style)]),
         Line::from(vec![Span::styled("  F2          ", key_style), Span::styled("Edit selected command", desc_style)]),

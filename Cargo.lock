@@ -1025,18 +1025,20 @@ checksum = "5d99f8c9a7727884afe522e9bd5edbfc91a3312b36a77b5fb8926e4c31a41801"
 
 [[package]]
 name = "ukrop"
-version = "0.12.0"
+version = "0.14.0"
 dependencies = [
  "anyhow",
  "chrono",
  "clap",
  "crossterm",
  "dirs",
+ "libc",
  "nucleo-matcher",
  "ratatui",
  "rusqlite",
  "serde",
  "serde_json",
+ "signal-hook",
  "tempfile",
  "toml",
 ]

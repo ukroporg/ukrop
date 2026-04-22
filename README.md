@@ -108,10 +108,10 @@ For manual setup and detailed usage, see [doc/usage.md](doc/usage.md).
 | Left / Right | Move cursor in search bar            |
 | Home / End   | Cursor to start/end of search        |
 | Enter        | Select entry                         |
-| Shift+Enter  | Paste to terminal for editing        |
+| Shift+Enter / F5 | Paste to terminal for editing   |
 | Tab          | Switch active panel (cd → run → ssh) |
 | Ctrl+F       | Toggle favorite                      |
-| Ctrl+Del     | Delete entry (with confirmation)     |
+| F8 / Ctrl+Del | Delete entry (with confirmation)    |
 | Ctrl+W       | Delete word backward                 |
 | Ctrl+U       | Clear search input                   |
 | Ctrl+Y       | Copy to clipboard                    |
@@ -120,7 +120,7 @@ For manual setup and detailed usage, see [doc/usage.md](doc/usage.md).
 | F9           | Open config editor                   |
 | Esc / Ctrl+C | Cancel                               |
 
-> **Note:** `Shift+Enter` and `Ctrl+Del` require a modern terminal with extended key sequence support (kitty, WezTerm, foot, Ghostty). Alternatives: `F2` for command editing, plain `Delete` for entry deletion. See [doc/usage.md](doc/usage.md#terminal-compatibility) for details.
+> **Note:** `Shift+Enter` and `Ctrl+Del` require a modern terminal with extended key sequence support (kitty, WezTerm, foot, Ghostty). Alternatives: `F5` for paste-to-terminal, `F8` for entry deletion, `F2` for command editing. See [doc/usage.md](doc/usage.md#terminal-compatibility) for details.
 
 ## License
 

@@ -10,7 +10,10 @@ pub fn handle_key(key: KeyEvent, state: &mut AppState) -> Action {
                 state.edit_dialog = None;
                 Action::Continue
             }
-            KeyCode::Enter => Action::ExecuteEdit,
+            KeyCode::F(5) => Action::ExecuteEdit,
+            KeyCode::Enter => { dialog.insert('\n'); Action::Continue }
+            KeyCode::Up => { dialog.move_up(); Action::Continue }
+            KeyCode::Down => { dialog.move_down(); Action::Continue }
             KeyCode::Left => { dialog.move_left(); Action::Continue }
             KeyCode::Right => { dialog.move_right(); Action::Continue }
             KeyCode::Home => { dialog.move_home(); Action::Continue }
@@ -19,6 +22,8 @@ pub fn handle_key(key: KeyEvent, state: &mut AppState) -> Action {
             KeyCode::Char('e') if key.modifiers.contains(KeyModifiers::CONTROL) => { dialog.move_end(); Action::Continue }
             KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) => { dialog.move_left(); Action::Continue }
             KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => { dialog.move_right(); Action::Continue }
+            KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => { dialog.move_up(); Action::Continue }
+            KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => { dialog.move_down(); Action::Continue }
             KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => { dialog.clear(); Action::Continue }
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 state.edit_dialog = None;
@@ -51,6 +56,7 @@ pub fn handle_key(key: KeyEvent, state: &mut AppState) -> Action {
     match key.code {
         KeyCode::F(1) => Action::ToggleHelp,
         KeyCode::F(2) => Action::EditCommand,
+        KeyCode::F(5) => Action::SelectEdit,
         KeyCode::F(9) => Action::ToggleConfig,
         KeyCode::Esc => Action::Quit,
         KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => Action::SelectEdit,
@@ -103,6 +109,7 @@ pub fn handle_key(key: KeyEvent, state: &mut AppState) -> Action {
             Action::ToggleFavorite
         }
         KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => Action::Quit,
+        KeyCode::F(8) => Action::Delete,
         KeyCode::Delete if key.modifiers.contains(KeyModifiers::CONTROL) => Action::Delete,
         KeyCode::Delete => {
             let len = state.query.chars().count();
