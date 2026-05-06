@@ -1,14 +1,27 @@
 class Ukrop < Formula
   desc "Quick directory jumping & command execution with fuzzy TUI"
   homepage "https://github.com/ukroporg/ukrop"
-  url "https://github.com/ukroporg/ukrop/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "PLACEHOLDER"
+  version "__VERSION__"
   license "MIT"
 
-  depends_on "rust" => :build
+  on_macos do
+    on_arm do
+      url "https://github.com/ukroporg/ukrop/releases/download/v#{version}/ukrop-v#{version}-aarch64-apple-darwin.tar.gz"
+      sha256 "__SHA_DARWIN_ARM__"
+    end
+    on_intel do
+      url "https://github.com/ukroporg/ukrop/releases/download/v#{version}/ukrop-v#{version}-x86_64-apple-darwin.tar.gz"
+      sha256 "__SHA_DARWIN_X86__"
+    end
+  end
+
+  on_linux do
+    url "https://github.com/ukroporg/ukrop/releases/download/v#{version}/ukrop-v#{version}-x86_64-unknown-linux-gnu.tar.gz"
+    sha256 "__SHA_LINUX__"
+  end
 
   def install
-    system "cargo", "install", *std.cargo_args, "--root", prefix, "--path", "."
+    bin.install "ukrop", "u"
   end
 
   def caveats

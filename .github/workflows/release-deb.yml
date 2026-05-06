@@ -1,4 +1,4 @@
-name: Build .deb package
+name: Release
 
 on:
   push:
@@ -31,17 +31,90 @@ jobs:
         with:
           files: target/debian/*.deb
 
+  build-binaries:
+    strategy:
+      matrix:
+        include:
+          - { os: macos-14,      target: aarch64-apple-darwin }
+          - { os: macos-13,      target: x86_64-apple-darwin }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build release binaries
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package tarball
+        run: |
+          set -euo pipefail
+          ASSET="ukrop-${{ github.ref_name }}-${{ matrix.target }}.tar.gz"
+          tar -czf "$ASSET" -C "target/${{ matrix.target }}/release" ukrop u
+          shasum -a 256 "$ASSET" | awk '{print $1}' > "${ASSET}.sha256"
+
+      - name: Upload binaries to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ukrop-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+            ukrop-${{ github.ref_name }}-${{ matrix.target }}.tar.gz.sha256
+
   bump-homebrew:
-    needs: build-deb
+    needs: build-binaries
     runs-on: ubuntu-latest
     steps:
-      - name: Bump Homebrew formula
-        uses: mislav/bump-homebrew-formula-action@v3
-        with:
-          formula-name: ukrop
-          formula-path: Formula/ukrop.rb
-          homebrew-tap: ukroporg/homebrew-tap
-          download-url: https://github.com/ukroporg/ukrop/archive/refs/tags/${{ github.ref_name }}.tar.gz
-          commit-message: ukrop {{version}}
+      - uses: actions/checkout@v6
+
+      - name: Resolve version
+        run: |
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Fetch SHA256 sums from release
         env:
-          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          for tgt in aarch64-apple-darwin x86_64-apple-darwin x86_64-unknown-linux-gnu; do
+            url="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/ukrop-${{ github.ref_name }}-${tgt}.tar.gz.sha256"
+            curl -fsSL --retry 5 --retry-delay 5 "$url" -o "${tgt}.sha256"
+          done
+          {
+            echo "SHA_DARWIN_ARM=$(cat aarch64-apple-darwin.sha256)"
+            echo "SHA_DARWIN_X86=$(cat x86_64-apple-darwin.sha256)"
+            echo "SHA_LINUX=$(cat x86_64-unknown-linux-gnu.sha256)"
+          } >> "$GITHUB_ENV"
+
+      - name: Render formula
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          sed \
+            -e "s|__VERSION__|${VERSION}|g" \
+            -e "s|__SHA_DARWIN_ARM__|${SHA_DARWIN_ARM}|g" \
+            -e "s|__SHA_DARWIN_X86__|${SHA_DARWIN_X86}|g" \
+            -e "s|__SHA_LINUX__|${SHA_LINUX}|g" \
+            packaging/homebrew/ukrop.rb > out/ukrop.rb
+
+      - name: Commit formula to tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/ukroporg/homebrew-tap.git" tap
+          mkdir -p tap/Formula
+          cp out/ukrop.rb tap/Formula/ukrop.rb
+          cd tap
+          if git diff --quiet; then
+            echo "No formula changes to commit."
+            exit 0
+          fi
+          git add Formula/ukrop.rb
+          git commit -m "ukrop ${VERSION}"
+          git push
