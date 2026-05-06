@@ -77,6 +77,15 @@ brew install ukroporg/tap/ukrop
 
 Formula template at `packaging/homebrew/ukrop.rb`.
 
+The tap at `ukroporg/homebrew-tap` is bumped automatically by the `bump-homebrew` job
+in `.github/workflows/release-deb.yml` whenever a `v*` tag is pushed. The job uses
+`mislav/bump-homebrew-formula-action`, which computes the new tarball SHA256 from
+the tag and commits the updated `Formula/ukrop.rb` to the tap repo.
+
+Requires repo secret `HOMEBREW_TAP_TOKEN` — a fine-grained PAT (or GitHub App token)
+with `contents: write` on `ukroporg/homebrew-tap`. The default `GITHUB_TOKEN` cannot
+push cross-repo.
+
 ### Debian/Ubuntu
 
 ```sh

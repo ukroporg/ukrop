@@ -101,10 +101,31 @@ fn read_escape(reader: &mut impl Read) -> std::io::Result<KeyEvent> {
                 b'B' => key(KeyCode::Down, KeyModifiers::NONE),
                 b'C' => key(KeyCode::Right, KeyModifiers::NONE),
                 b'D' => key(KeyCode::Left, KeyModifiers::NONE),
+                b'H' => key(KeyCode::Home, KeyModifiers::NONE),
+                b'F' => key(KeyCode::End, KeyModifiers::NONE),
                 b'P' => key(KeyCode::F(1), KeyModifiers::NONE),
                 b'Q' => key(KeyCode::F(2), KeyModifiers::NONE),
                 b'R' => key(KeyCode::F(3), KeyModifiers::NONE),
                 b'S' => key(KeyCode::F(4), KeyModifiers::NONE),
+                // Numeric keypad in application mode (DECPAM)
+                b'p' => key(KeyCode::Char('0'), KeyModifiers::NONE),
+                b'q' => key(KeyCode::Char('1'), KeyModifiers::NONE),
+                b'r' => key(KeyCode::Char('2'), KeyModifiers::NONE),
+                b's' => key(KeyCode::Char('3'), KeyModifiers::NONE),
+                b't' => key(KeyCode::Char('4'), KeyModifiers::NONE),
+                b'u' => key(KeyCode::Char('5'), KeyModifiers::NONE),
+                b'v' => key(KeyCode::Char('6'), KeyModifiers::NONE),
+                b'w' => key(KeyCode::Char('7'), KeyModifiers::NONE),
+                b'x' => key(KeyCode::Char('8'), KeyModifiers::NONE),
+                b'y' => key(KeyCode::Char('9'), KeyModifiers::NONE),
+                b'l' => key(KeyCode::Char(','), KeyModifiers::NONE),
+                b'm' => key(KeyCode::Char('-'), KeyModifiers::NONE),
+                b'n' => key(KeyCode::Char('.'), KeyModifiers::NONE),
+                b'o' => key(KeyCode::Char('/'), KeyModifiers::NONE),
+                b'j' => key(KeyCode::Char('*'), KeyModifiers::NONE),
+                b'k' => key(KeyCode::Char('+'), KeyModifiers::NONE),
+                b'X' => key(KeyCode::Char('='), KeyModifiers::NONE),
+                b'M' => key(KeyCode::Enter, KeyModifiers::NONE),
                 _ => key(KeyCode::Esc, KeyModifiers::NONE),
             }
         }
@@ -333,6 +354,30 @@ mod tests {
         let k = parse(&[27, b'[', b'2', b'4', b'~']);
         assert_eq!(k.code, KeyCode::F(12));
         assert_eq!(k.modifiers, KeyModifiers::NONE);
+    }
+
+    #[test]
+    fn test_ss3_keypad_digits() {
+        // Numeric keypad in application mode: ESC O p..y → 0..9
+        for (byte, digit) in [
+            (b'p', '0'), (b'q', '1'), (b'r', '2'), (b's', '3'), (b't', '4'),
+            (b'u', '5'), (b'v', '6'), (b'w', '7'), (b'x', '8'), (b'y', '9'),
+        ] {
+            let k = parse(&[27, b'O', byte]);
+            assert_eq!(k.code, KeyCode::Char(digit), "byte {} should map to digit {}", byte as char, digit);
+            assert_eq!(k.modifiers, KeyModifiers::NONE);
+        }
+    }
+
+    #[test]
+    fn test_ss3_keypad_operators() {
+        // ESC O M = keypad Enter, ESC O n = ., ESC O k = +, ESC O m = -
+        assert_eq!(parse(&[27, b'O', b'M']).code, KeyCode::Enter);
+        assert_eq!(parse(&[27, b'O', b'n']).code, KeyCode::Char('.'));
+        assert_eq!(parse(&[27, b'O', b'k']).code, KeyCode::Char('+'));
+        assert_eq!(parse(&[27, b'O', b'm']).code, KeyCode::Char('-'));
+        assert_eq!(parse(&[27, b'O', b'j']).code, KeyCode::Char('*'));
+        assert_eq!(parse(&[27, b'O', b'o']).code, KeyCode::Char('/'));
     }
 
     #[test]

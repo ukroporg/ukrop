@@ -30,3 +30,18 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: target/debian/*.deb
+
+  bump-homebrew:
+    needs: build-deb
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bump Homebrew formula
+        uses: mislav/bump-homebrew-formula-action@v3
+        with:
+          formula-name: ukrop
+          formula-path: Formula/ukrop.rb
+          homebrew-tap: ukroporg/homebrew-tap
+          download-url: https://github.com/ukroporg/ukrop/archive/refs/tags/${{ github.ref_name }}.tar.gz
+          commit-message: ukrop {{version}}
+        env:
+          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
