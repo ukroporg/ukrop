@@ -27,7 +27,7 @@ jobs:
         run: cargo deb
 
       - name: Upload .deb to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: target/debian/*.deb
 
@@ -58,7 +58,7 @@ jobs:
           shasum -a 256 "$ASSET" | awk '{print $1}' > "${ASSET}.sha256"
 
       - name: Upload binaries to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             ukrop-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
