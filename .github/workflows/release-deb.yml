@@ -24,12 +24,16 @@ jobs:
         run: cargo test
 
       - name: Build .deb package
-        run: cargo deb
+        run: |
+          cargo deb
+          cp target/debian/ukrop_*_amd64.deb target/debian/ukrop.deb
 
       - name: Upload .deb to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          files: target/debian/*.deb
+          files: |
+            target/debian/ukrop_*_amd64.deb
+            target/debian/ukrop.deb
 
   build-binaries:
     strategy:
