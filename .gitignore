@@ -2,3 +2,5 @@
 /.idea
 /target
 /doc/website
+.DS_Store
+/tmp
