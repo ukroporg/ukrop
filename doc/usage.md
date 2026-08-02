@@ -266,15 +266,18 @@ selection_bold = true      # bold styling for selected items (default: true)
 match_underline = true     # underline matched characters (default: true)
 favorite_italic = false    # italic styling for favorites (default: false)
 
+# Deprecated: the unified list has no panels, so these ratios are parsed for
+# backward compatibility with old config files and then ignored. Not
+# shown in the in-TUI config editor.
 [layout]
-left_panel_pct = 25        # left column width percentage (5-50, default: 25)
-cd_panel_pct = 75          # cd panel height percentage within left column (10-90, default: 75)
+left_panel_pct = 25
+cd_panel_pct = 75
 ```
 
 ### In-TUI config editor
 
 Press **F9** inside the TUI or run `ukrop config` to open the config editor as a modal overlay. Changes are previewed
-live (theme and layout changes update the background panels in real-time). Press **F9** or **Ctrl+S** to save, **Esc**
+live (theme changes update the result list colors in real-time). Press **F9** or **Ctrl+S** to save, **Esc**
 to cancel and revert.
 
 ### Theme presets

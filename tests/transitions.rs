@@ -179,3 +179,21 @@ fn test_picker_ssh_pick_is_not_double_recorded() {
         score
     );
 }
+
+#[test]
+fn test_cleanup_prunes_stale_transitions_and_pwd_keys() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = store(&dir);
+    s.record_transition("/a", "cd", "/b").unwrap();
+    s.set_shell_pwd("9", "/a").unwrap();
+
+    // Nothing is stale yet.
+    assert_eq!(s.prune_transitions(90).unwrap(), 0);
+    assert_eq!(s.prune_shell_pwd_keys(90).unwrap(), 0);
+
+    // A zero-day window makes everything stale.
+    assert_eq!(s.prune_transitions(0).unwrap(), 1);
+    assert_eq!(s.prune_shell_pwd_keys(0).unwrap(), 1);
+    assert!(s.transitions_from("/a").unwrap().is_empty());
+    assert_eq!(s.get_shell_pwd("9").unwrap(), None);
+}

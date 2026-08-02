@@ -51,9 +51,11 @@ fn cmd_cd(query: Option<String>, initial_mode: Option<tui::PickerMode>) -> Resul
         eprintln!();
     }
 
-    // Auto-cleanup stale directories
+    // Auto-cleanup stale directories, transitions, and per-shell PWD keys
     let cfg = config::Config::load();
     let _ = store.cleanup_stale_directories(cfg.cleanup.stale_days);
+    let _ = store.prune_transitions(cfg.cleanup.stale_days);
+    let _ = store.prune_shell_pwd_keys(cfg.cleanup.stale_days);
 
     // Non-interactive mode: if query is provided and stdout is not a TTY, print best match
     if let Some(ref q) = query {

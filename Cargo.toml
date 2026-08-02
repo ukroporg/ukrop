@@ -1,6 +1,6 @@
 [package]
 name = "ukrop"
-version = "0.19.0"
+version = "0.20.0"
 edition = "2021"
 description = "Quick directory jumping & command execution with fuzzy TUI"
 license = "MIT"

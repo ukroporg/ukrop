@@ -67,7 +67,7 @@ impl Store {
         let cutoff = chrono::Utc::now().timestamp() - (max_age_days * 24 * 3600) as i64;
         let n = self
             .conn_mut()
-            .execute("DELETE FROM transitions WHERE last_time < ?1", [cutoff])?;
+            .execute("DELETE FROM transitions WHERE last_time <= ?1", [cutoff])?;
         Ok(n)
     }
 
@@ -121,7 +121,7 @@ impl Store {
                 .filter(|(_, v)| {
                     v.split_once('\t')
                         .and_then(|(ts, _)| ts.parse::<i64>().ok())
-                        .map(|ts| ts < cutoff)
+                        .map(|ts| ts <= cutoff)
                         .unwrap_or(true) // malformed / legacy value: prune it
                 })
                 .map(|(k, _)| k)

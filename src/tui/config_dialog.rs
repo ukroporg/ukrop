@@ -1,9 +1,14 @@
-use crate::config::{Config, ThemePreset};
+use crate::config::{Config, LayoutConfig, ThemePreset};
 
 pub struct ConfigDialog {
     pub fields: Vec<ConfigField>,
     pub focused: usize,
     pub dirty: bool,
+    /// The `[layout]` section is no longer editable from the dialog (the
+    /// unified list has no panels to size), but existing users may still
+    /// have custom values in their `config.toml`. Carry them through
+    /// unedited so saving the dialog doesn't silently reset them.
+    layout: LayoutConfig,
 }
 
 pub struct ConfigField {
@@ -67,16 +72,6 @@ impl ConfigDialog {
                 kind: FieldKind::Bool { value: cfg.theme.favorite_italic },
             },
             ConfigField {
-                label: "left_panel_pct",
-                section: "Layout",
-                kind: FieldKind::Uint { value: cfg.layout.left_panel_pct.to_string() },
-            },
-            ConfigField {
-                label: "cd_panel_pct",
-                section: "Layout",
-                kind: FieldKind::Uint { value: cfg.layout.cd_panel_pct.to_string() },
-            },
-            ConfigField {
                 label: "confirm_delete",
                 section: "Behavior",
                 kind: FieldKind::Bool { value: cfg.confirm_delete },
@@ -95,11 +90,13 @@ impl ConfigDialog {
             fields,
             focused: 0,
             dirty: false,
+            layout: cfg.layout.clone(),
         }
     }
 
     pub fn to_config(&self) -> Result<Config, String> {
         let mut cfg = Config::default();
+        cfg.layout = self.layout.clone();
 
         for field in &self.fields {
             match (field.label, &field.kind) {
@@ -130,22 +127,6 @@ impl ConfigDialog {
                 }
                 ("favorite_italic", FieldKind::Bool { value }) => {
                     cfg.theme.favorite_italic = *value;
-                }
-                ("left_panel_pct", FieldKind::Uint { value }) => {
-                    let v = value.parse::<u16>()
-                        .map_err(|_| format!("Invalid left_panel_pct: {}", value))?;
-                    if v < 5 || v > 50 {
-                        return Err(format!("left_panel_pct must be 5-50, got {}", v));
-                    }
-                    cfg.layout.left_panel_pct = v;
-                }
-                ("cd_panel_pct", FieldKind::Uint { value }) => {
-                    let v = value.parse::<u16>()
-                        .map_err(|_| format!("Invalid cd_panel_pct: {}", value))?;
-                    if v < 10 || v > 90 {
-                        return Err(format!("cd_panel_pct must be 10-90, got {}", v));
-                    }
-                    cfg.layout.cd_panel_pct = v;
                 }
                 ("confirm_delete", FieldKind::Bool { value }) => {
                     cfg.confirm_delete = *value;
@@ -389,6 +370,16 @@ mod tests {
             result.is_err(),
             "out-of-range substring_bonus must be rejected, got {:?}",
             result.map(|c| c.scoring.substring_bonus)
+        );
+    }
+
+    #[test]
+    fn test_dialog_has_no_layout_fields() {
+        let cfg = crate::config::Config::default();
+        let d = ConfigDialog::from_config(&cfg);
+        assert!(
+            !d.fields.iter().any(|f| f.label.contains("panel_pct")),
+            "panel ratio fields are obsolete in the unified list"
         );
     }
 }

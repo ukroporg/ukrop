@@ -114,6 +114,9 @@ impl ThemePreset {
     }
 }
 
+/// Deprecated as of 0.20.0. The unified list has no panels, so these ratios are
+/// parsed for backward compatibility and then ignored. Do not remove the struct:
+/// existing config files still contain a `[layout]` section.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LayoutConfig {
