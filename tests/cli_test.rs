@@ -31,6 +31,27 @@ fn test_init_zsh() {
 }
 
 #[test]
+fn test_init_scripts_pass_new_hook_flags() {
+    for shell in ["bash", "zsh", "fish", "powershell"] {
+        let out = std::process::Command::new(env!("CARGO_BIN_EXE_ukrop"))
+            .args(["init", shell])
+            .output()
+            .unwrap();
+        let script = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            script.contains("--shell-id"),
+            "{} init script must pass --shell-id",
+            shell
+        );
+        assert!(
+            script.contains("hook-ssh") && script.contains("--cwd"),
+            "{} init script must pass --cwd to hook-ssh",
+            shell
+        );
+    }
+}
+
+#[test]
 fn test_hook_and_list() {
     let dir = tempfile::tempdir().unwrap();
     let db = dir.path().join("test.db");

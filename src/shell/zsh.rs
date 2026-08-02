@@ -5,7 +5,7 @@ __ukrop_hook_err="${TMPDIR:-/tmp}/ukrop-hook-$$.err"
 __ukrop_hook_warned=0
 
 __ukrop_hook() {
-    command ukrop hook -- "$PWD" 2>/dev/null
+    command ukrop hook --shell-id "$$" -- "$PWD" 2>/dev/null
 }
 
 __ukrop_preexec() {
@@ -69,7 +69,7 @@ ukrop() {
                     ;;
                 ssh:*)
                     local ssh_args="${result#ssh:}"
-                    command ukrop hook-ssh --host "$ssh_args" &>/dev/null &!
+                    command ukrop hook-ssh --host "$ssh_args" --cwd "$PWD" &>/dev/null &!
                     ssh ${=ssh_args}
                     ;;
             esac

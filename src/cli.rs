@@ -45,6 +45,9 @@ pub enum Command {
     /// Record directory visit (called by shell hook)
     #[command(hide = true)]
     Hook {
+        /// Shell instance id (PID), used to track per-shell directory changes.
+        #[arg(long)]
+        shell_id: Option<String>,
         #[arg(last = true)]
         path: String,
     },
@@ -54,6 +57,9 @@ pub enum Command {
         /// SSH host args (e.g. "-p 2222 root@myhost" or "myhost")
         #[arg(long, allow_hyphen_values = true)]
         host: String,
+        /// Directory the ssh command was issued from.
+        #[arg(long)]
+        cwd: Option<String>,
     },
     /// Record command execution (called by shell hook)
     #[command(hide = true)]

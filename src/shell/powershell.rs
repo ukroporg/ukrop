@@ -9,7 +9,7 @@ $global:__ukrop_last_cmd = $null
 function global:__ukrop_hook {
     $cwd = (Get-Location).ProviderPath
     if ($null -ne $cwd) {
-        & ukrop hook -- $cwd
+        & ukrop hook --shell-id "$PID" -- $cwd
     }
 }
 
@@ -88,7 +88,7 @@ function global:ukrop {
             }
             '^ssh:(.*)' {
                 $sshArgs = $Matches[1]
-                & ukrop hook-ssh --host $sshArgs 2>$null
+                & ukrop hook-ssh --host $sshArgs --cwd (Get-Location).ProviderPath 2>$null
                 Invoke-Expression "ssh $sshArgs"
             }
         }

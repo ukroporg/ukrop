@@ -5,7 +5,7 @@ set -g __ukrop_hook_err (mktemp -t ukrop-hook.XXXXXX)
 set -g __ukrop_hook_warned 0
 
 function __ukrop_hook --on-variable PWD
-    command ukrop hook -- "$PWD" 2>/dev/null
+    command ukrop hook --shell-id "$fish_pid" -- "$PWD" 2>/dev/null
 end
 
 function __ukrop_postexec --on-event fish_postexec
@@ -48,7 +48,7 @@ function ukrop
                     eval $cmd
                 case 'ssh:*'
                     set -l ssh_args (string sub -s 5 -- $result)
-                    command ukrop hook-ssh --host "$ssh_args" &>/dev/null &
+                    command ukrop hook-ssh --host "$ssh_args" --cwd "$PWD" &>/dev/null &
                     ssh (string split ' ' -- $ssh_args)
             end
         end

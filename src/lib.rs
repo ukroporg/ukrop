@@ -24,8 +24,8 @@ pub fn run() -> Result<()> {
         Some(Command::Ssh { query }) => cmd_ssh(query_opt(&query)),
         Some(Command::Search { query }) => cmd_search(query_opt(&query)),
         Some(Command::Init { shell }) => cmd_init(shell),
-        Some(Command::Hook { path }) => cmd_hook(&path),
-        Some(Command::HookSsh { host }) => cmd_hook_ssh(&host),
+        Some(Command::Hook { shell_id, path }) => cmd_hook(&path, shell_id.as_deref()),
+        Some(Command::HookSsh { host, cwd }) => cmd_hook_ssh(&host, cwd.as_deref()),
         Some(Command::HookCmd { cmd, exit_code, cwd, duration_ms }) => cmd_hook_cmd(&cmd, exit_code, cwd, duration_ms),
         Some(Command::Add { path }) => cmd_add(&path),
         Some(Command::Forget { path }) => cmd_forget(&path),
@@ -139,6 +139,27 @@ pub fn record_pick_transition(
     store.record_transition(from, kind, target)
 }
 
+/// Record the shell's current directory at prompt time, and derive a `cd`
+/// transition when it differs from the last directory seen for this shell.
+/// Without a `shell_id`, concurrent shells would fabricate transitions between
+/// unrelated directories, so no transition is recorded.
+pub fn record_prompt_pwd(
+    store: &mut db::store::Store,
+    path: &str,
+    shell_id: Option<&str>,
+) -> Result<()> {
+    let Some(sid) = shell_id else {
+        return Ok(());
+    };
+    if let Some(prev) = store.get_shell_pwd(sid)? {
+        if prev != path {
+            store.record_transition(&prev, "cd", path)?;
+        }
+    }
+    store.set_shell_pwd(sid, path)?;
+    Ok(())
+}
+
 fn cmd_config() -> Result<()> {
     run_tui_inner(None, None, true)
 }
@@ -153,17 +174,21 @@ fn cmd_init(shell: cli::ShellType) -> Result<()> {
     Ok(())
 }
 
-fn cmd_hook(path: &str) -> Result<()> {
+fn cmd_hook(path: &str, shell_id: Option<&str>) -> Result<()> {
     let db_path = util::db_path()?;
     let mut store = db::store::Store::open(&db_path)?;
     store.record_visit(path)?;
+    let _ = record_prompt_pwd(&mut store, path, shell_id);
     Ok(())
 }
 
-fn cmd_hook_ssh(host: &str) -> Result<()> {
+fn cmd_hook_ssh(host: &str, cwd: Option<&str>) -> Result<()> {
     let db_path = util::db_path()?;
     let mut store = db::store::Store::open(&db_path)?;
     store.record_ssh_host(host, None, None, None, "hook")?;
+    if let Some(from) = cwd {
+        let _ = record_pick_transition(&mut store, Some(from), "ssh", host);
+    }
     Ok(())
 }
 
@@ -181,7 +206,13 @@ fn cmd_hook_cmd(cmd: &str, exit_code: Option<i64>, cwd: Option<String>, duration
     let trimmed = cmd.trim();
     if trimmed.starts_with("ssh ") && !trimmed.starts_with("ssh-") {
         let args = &trimmed[4..];
-        let _ = store.record_ssh_from_command(args.trim());
+        if let Ok(true) = store.record_ssh_from_command(args.trim()) {
+            if let Some(ref d) = cwd {
+                if let Some(h) = history::parse_ssh_command(trimmed) {
+                    let _ = record_pick_transition(&mut store, Some(d), "ssh", &h.host);
+                }
+            }
+        }
     }
 
     Ok(())

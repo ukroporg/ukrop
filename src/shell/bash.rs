@@ -13,7 +13,7 @@ trap '__ukrop_preexec' DEBUG
 
 __ukrop_hook() {
     local exit_code=$?
-    command ukrop hook -- "$PWD" 2>/dev/null
+    command ukrop hook --shell-id "$$" -- "$PWD" 2>/dev/null
     if [ -n "$__ukrop_last_cmd" ]; then
         local duration_args=""
         if [ -n "$__ukrop_cmd_start" ]; then
@@ -65,7 +65,7 @@ ukrop() {
                     ;;
                 ssh:*)
                     local ssh_args="${result#ssh:}"
-                    { command ukrop hook-ssh --host "$ssh_args" &>/dev/null & disown; } 2>/dev/null
+                    { command ukrop hook-ssh --host "$ssh_args" --cwd "$PWD" &>/dev/null & disown; } 2>/dev/null
                     ssh $ssh_args
                     ;;
             esac

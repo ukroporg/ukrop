@@ -45,3 +45,47 @@ fn test_self_transition_is_skipped() {
     ukrop::record_pick_transition(&mut s, Some("/same"), "cd", "/same").unwrap();
     assert!(s.transitions_from("/same").unwrap().is_empty());
 }
+
+#[test]
+fn test_shell_pwd_change_records_a_cd_transition() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = store(&dir);
+    ukrop::record_prompt_pwd(&mut s, "/a", Some("42")).unwrap();
+    ukrop::record_prompt_pwd(&mut s, "/b", Some("42")).unwrap();
+    let map = s.transitions_from("/a").unwrap();
+    assert!(map.contains_key(&("cd".to_string(), "/b".to_string())));
+}
+
+#[test]
+fn test_same_pwd_twice_records_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = store(&dir);
+    ukrop::record_prompt_pwd(&mut s, "/a", Some("42")).unwrap();
+    ukrop::record_prompt_pwd(&mut s, "/a", Some("42")).unwrap();
+    assert!(s.transitions_from("/a").unwrap().is_empty());
+}
+
+#[test]
+fn test_concurrent_shells_do_not_cross_contaminate() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = store(&dir);
+    // Two tabs sitting in different directories, alternating prompts.
+    ukrop::record_prompt_pwd(&mut s, "/tab1", Some("1")).unwrap();
+    ukrop::record_prompt_pwd(&mut s, "/tab2", Some("2")).unwrap();
+    ukrop::record_prompt_pwd(&mut s, "/tab1", Some("1")).unwrap();
+    ukrop::record_prompt_pwd(&mut s, "/tab2", Some("2")).unwrap();
+    assert!(
+        s.transitions_from("/tab1").unwrap().is_empty(),
+        "no fabricated transition between unrelated shells"
+    );
+    assert!(s.transitions_from("/tab2").unwrap().is_empty());
+}
+
+#[test]
+fn test_missing_shell_id_records_nothing_but_does_not_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = store(&dir);
+    ukrop::record_prompt_pwd(&mut s, "/a", None).unwrap();
+    ukrop::record_prompt_pwd(&mut s, "/b", None).unwrap();
+    assert!(s.transitions_from("/a").unwrap().is_empty());
+}
