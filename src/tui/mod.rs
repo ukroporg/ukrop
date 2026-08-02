@@ -189,10 +189,10 @@ pub struct PickResult {
 }
 
 pub fn run_picker(
-    mode: PickerMode,
+    mode: Option<PickerMode>,
     store: &mut crate::db::store::Store,
     initial_query: Option<String>,
     open_config: bool,
-) -> Result<Option<(PickerMode, String, bool)>> {
+) -> Result<Option<PickResult>> {
     app::run(mode, store, initial_query, open_config)
 }

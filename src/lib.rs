@@ -17,8 +17,9 @@ pub fn run() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        None => cmd_cd(None),
-        Some(Command::Cd { query }) => cmd_cd(query_opt(&query)),
+        // Bare `ukrop` opens the unified list with no type preselected.
+        None => cmd_cd(None, None),
+        Some(Command::Cd { query }) => cmd_cd(query_opt(&query), Some(tui::PickerMode::Directories)),
         Some(Command::Run { query }) => cmd_run(query_opt(&query)),
         Some(Command::Ssh { query }) => cmd_ssh(query_opt(&query)),
         Some(Command::Search { query }) => cmd_search(query_opt(&query)),
@@ -42,7 +43,7 @@ fn query_opt(parts: &[String]) -> Option<String> {
     if q.is_empty() { None } else { Some(q) }
 }
 
-fn cmd_cd(query: Option<String>) -> Result<()> {
+fn cmd_cd(query: Option<String>, initial_mode: Option<tui::PickerMode>) -> Result<()> {
     let db_path = util::db_path()?;
     let mut store = db::store::Store::open(&db_path)?;
     if store.is_empty()? && !setup_marker_exists() {
@@ -67,36 +68,38 @@ fn cmd_cd(query: Option<String>) -> Result<()> {
     }
 
     drop(store);
-    run_tui(tui::PickerMode::Directories, query)
+    run_tui(initial_mode, query)
 }
 
 fn cmd_run(query: Option<String>) -> Result<()> {
-    run_tui(tui::PickerMode::Commands, query)
+    run_tui(Some(tui::PickerMode::Commands), query)
 }
 
 fn cmd_ssh(query: Option<String>) -> Result<()> {
-    run_tui(tui::PickerMode::SshHosts, query)
+    run_tui(Some(tui::PickerMode::SshHosts), query)
 }
 
 fn cmd_search(query: Option<String>) -> Result<()> {
-    run_tui(tui::PickerMode::Commands, query)
+    // `search` is documented as searching across every type, which the
+    // unified list expresses as no preselected type filter.
+    run_tui(None, query)
 }
 
-fn run_tui(initial_mode: tui::PickerMode, initial_query: Option<String>) -> Result<()> {
+fn run_tui(initial_mode: Option<tui::PickerMode>, initial_query: Option<String>) -> Result<()> {
     run_tui_inner(initial_mode, initial_query, false)
 }
 
-fn run_tui_inner(initial_mode: tui::PickerMode, initial_query: Option<String>, open_config: bool) -> Result<()> {
+fn run_tui_inner(initial_mode: Option<tui::PickerMode>, initial_query: Option<String>, open_config: bool) -> Result<()> {
     let db_path = util::db_path()?;
     let mut store = db::store::Store::open(&db_path)?;
 
     match tui::run_picker(initial_mode, &mut store, initial_query, open_config)? {
-        Some((mode, selected, edit)) => {
-            let prefix = if edit { "edit:" } else { "" };
-            match mode {
-                tui::PickerMode::Directories => println!("{}cd:{}", prefix, selected),
-                tui::PickerMode::Commands => println!("{}run:{}", prefix, selected),
-                tui::PickerMode::SshHosts => println!("{}ssh:{}", prefix, selected),
+        Some(result) => {
+            let prefix = if result.edit { "edit:" } else { "" };
+            match result.kind {
+                tui::PickerMode::Directories => println!("{}cd:{}", prefix, result.output),
+                tui::PickerMode::Commands => println!("{}run:{}", prefix, result.output),
+                tui::PickerMode::SshHosts => println!("{}ssh:{}", prefix, result.output),
             }
             Ok(())
         }
@@ -105,7 +108,7 @@ fn run_tui_inner(initial_mode: tui::PickerMode, initial_query: Option<String>, o
 }
 
 fn cmd_config() -> Result<()> {
-    run_tui_inner(tui::PickerMode::Directories, None, true)
+    run_tui_inner(None, None, true)
 }
 
 fn cmd_init(shell: cli::ShellType) -> Result<()> {

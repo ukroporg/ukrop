@@ -14,7 +14,7 @@ use super::input::handle_key;
 use super::theme::Theme;
 use super::tty_reader::PollResult;
 use super::ui::draw;
-use super::PickerEntry;
+use super::{PickResult, PickerEntry};
 use crate::config::Config;
 use crate::db::store::Store;
 use std::io::Write as IoWrite;
@@ -60,8 +60,8 @@ pub enum Action {
     Delete,
     ConfirmDelete,
     CancelDelete,
-    SwitchPanel,
-    SwitchPanelBack,
+    CycleFilter,
+    CycleFilterBack,
     ToggleCwdFilter,
     ToggleHelp,
     ToggleConfig,
@@ -94,147 +94,15 @@ impl PickerMode {
             PickerMode::SshHosts => "ssh",
         }
     }
-}
 
-pub struct PanelState {
-    pub mode: PickerMode,
-    pub items: Vec<PickerEntry>,
-    pub display_texts: Vec<String>,
-    pub filtered_indices: Vec<(usize, u32, bool)>,
-    pub selected: usize,
-    pub scroll_offset: usize,
-    pub fuzzy: FuzzyMatcher,
-    pub visible_height: usize,
-    /// Current working directory, used for cwd bonus in Commands panel.
-    pub cwd: Option<String>,
-}
-
-impl PanelState {
-    fn new(mode: PickerMode, items: Vec<PickerEntry>) -> Self {
-        let display_texts: Vec<String> = items.iter().map(|i| i.display.clone()).collect();
-        let mut fuzzy = FuzzyMatcher::new();
-        let filtered_indices = fuzzy.filter("", &display_texts);
-        PanelState {
-            mode,
-            items,
-            display_texts,
-            filtered_indices,
-            selected: 0,
-            scroll_offset: 0,
-            fuzzy,
-            visible_height: 0,
-            cwd: None,
+    /// Single-character type marker shown at the left of each row.
+    pub fn sigil(self) -> &'static str {
+        match self {
+            PickerMode::Directories => "/",
+            PickerMode::Commands => "$",
+            PickerMode::SshHosts => "@",
         }
     }
-
-    pub fn selected_index(&self) -> Option<usize> {
-        self.filtered_indices.get(self.selected).map(|(i, _, _)| *i)
-    }
-
-    pub fn move_up(&mut self) {
-        if self.selected > 0 {
-            self.selected -= 1;
-        }
-    }
-
-    pub fn move_down(&mut self) {
-        if !self.filtered_indices.is_empty() && self.selected < self.filtered_indices.len() - 1 {
-            self.selected += 1;
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn move_to_first(&mut self) {
-        self.selected = 0;
-    }
-
-    #[allow(dead_code)]
-    pub fn move_to_last(&mut self) {
-        if !self.filtered_indices.is_empty() {
-            self.selected = self.filtered_indices.len() - 1;
-        }
-    }
-
-    pub fn page_up(&mut self) {
-        let ps = if self.visible_height > 1 { self.visible_height - 1 } else { 1 };
-        self.selected = self.selected.saturating_sub(ps);
-        self.scroll_offset = self.scroll_offset.saturating_sub(ps);
-    }
-
-    pub fn page_down(&mut self) {
-        if !self.filtered_indices.is_empty() {
-            let ps = if self.visible_height > 1 { self.visible_height - 1 } else { 1 };
-            let max = self.filtered_indices.len() - 1;
-            self.selected = (self.selected + ps).min(max);
-            let max_offset = self.filtered_indices.len().saturating_sub(self.visible_height);
-            self.scroll_offset = (self.scroll_offset + ps).min(max_offset);
-        }
-    }
-
-    /// Adjust scroll_offset so that `selected` is visible, with minimal scrolling.
-    pub fn ensure_visible(&mut self, visible_height: usize) {
-        if visible_height == 0 {
-            return;
-        }
-        self.visible_height = visible_height;
-        // Cap scroll_offset so we don't scroll past the last screenful
-        let max_offset = self.filtered_indices.len().saturating_sub(visible_height);
-        if self.scroll_offset > max_offset {
-            self.scroll_offset = max_offset;
-        }
-        if self.selected < self.scroll_offset {
-            self.scroll_offset = self.selected;
-        } else if self.selected >= self.scroll_offset + visible_height {
-            self.scroll_offset = self.selected - visible_height + 1;
-        }
-    }
-
-    pub fn update_filter(&mut self, query: &str) {
-        self.filtered_indices = self.fuzzy.filter(query, &self.display_texts);
-
-        if !query.is_empty() {
-            let query_lower = query.to_lowercase();
-            for entry in &mut self.filtered_indices {
-                let idx = entry.0;
-                let fuzzy_score = entry.1;
-                let is_substring = entry.2;
-
-                // Prefix bonus: big boost if display text starts with the query
-                let prefix_bonus: u32 = if self.display_texts[idx]
-                    .to_lowercase()
-                    .starts_with(&query_lower)
-                {
-                    10_000
-                } else {
-                    0
-                };
-
-                // Substring bonus: substring matches rank above fuzzy-only matches
-                let substring_bonus: u32 = if is_substring { 8_000 } else { 0 };
-
-                // Frecency bonus: scale DB score (typically 1-50) into ranking range
-                let frecency_bonus = (self.items[idx].score * 100.0).min(5_000.0) as u32;
-
-                // Brevity bonus: shorter commands rank higher (max 3000 for very short commands)
-                let len = self.display_texts[idx].len() as u32;
-                let brevity_bonus: u32 = 3_000u32.saturating_sub(len * 15);
-
-                // CWD bonus: commands previously run in the current directory rank higher
-                let cwd_bonus: u32 = match (&self.cwd, &self.items[idx].cwd) {
-                    (Some(current), Some(item_cwd)) if current == item_cwd => 4_000,
-                    _ => 0,
-                };
-
-                entry.1 = fuzzy_score + prefix_bonus + substring_bonus + frecency_bonus + brevity_bonus + cwd_bonus;
-            }
-            self.filtered_indices.sort_by(|a, b| b.1.cmp(&a.1));
-        }
-
-        if self.selected >= self.filtered_indices.len() {
-            self.selected = self.filtered_indices.len().saturating_sub(1);
-        }
-    }
-
 }
 
 use super::ranking::{base_score, interleave, MatchKind, RankInput, Scored};
@@ -453,15 +321,21 @@ impl UnifiedList {
             self.scroll_offset = self.selected - visible_height + 1;
         }
     }
+
+    /// Matched character positions for highlighting. Takes `&self` so it can be
+    /// called while `rows` is borrowed for rendering; the matcher is built on
+    /// the spot rather than reusing the `&mut self` scratch buffer.
+    pub fn fuzzy_positions(&self, query: &str, text: &str) -> Vec<u32> {
+        let mut m = FuzzyMatcher::new();
+        m.match_positions(query, text)
+    }
 }
 
 pub struct AppState {
     pub query: String,
     pub cursor: usize,
-    pub panels: [PanelState; 3],
-    pub active: usize,
+    pub list: UnifiedList,
     pub confirm_delete: bool,
-    pub cwd_filter: bool,
     pub show_help: bool,
     pub show_config: Option<ConfigDialog>,
     pub flash_message: Option<(String, Instant)>,
@@ -473,49 +347,42 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn active_panel(&self) -> &PanelState {
-        &self.panels[self.active]
-    }
-
-    pub fn active_panel_mut(&mut self) -> &mut PanelState {
-        &mut self.panels[self.active]
-    }
-
-    pub fn update_all_filters(&mut self) {
-        let query = self.query.clone();
-        for panel in &mut self.panels {
-            panel.update_filter(&query);
-        }
-    }
-
-    pub fn switch_panel(&mut self) {
-        self.active = (self.active + 1) % 3;
-    }
-
-    pub fn switch_panel_back(&mut self) {
-        self.active = (self.active + 2) % 3;
+    pub fn update_filter(&mut self) {
+        let q = self.query.clone();
+        self.list.update_filter(&q);
     }
 
     /// Rebuild theme from current config for live preview
     pub fn rebuild_theme(&mut self) {
         self.theme = Theme::from_config(&self.config);
     }
-}
 
-fn load_items(mode: PickerMode, store: &mut Store) -> Result<Vec<PickerEntry>> {
-    Ok(match mode {
-        PickerMode::Directories => PickerEntry::from_dirs(store.list_directories()?),
-        PickerMode::Commands => PickerEntry::from_cmds(store.list_commands()?),
-        PickerMode::SshHosts => PickerEntry::from_ssh_hosts(store.list_ssh_hosts()?),
-    })
+    #[cfg(test)]
+    pub fn for_test() -> Self {
+        let cfg = Config::default();
+        AppState {
+            query: String::new(),
+            cursor: 0,
+            list: UnifiedList::new(Vec::new(), None, HashMap::new(), cfg.scoring.clone()),
+            confirm_delete: false,
+            show_help: false,
+            show_config: None,
+            flash_message: None,
+            theme: Theme::from_config(&cfg),
+            config: cfg,
+            backup_config: None,
+            open_config_mode: false,
+            edit_dialog: None,
+        }
+    }
 }
 
 pub fn run(
-    initial_mode: PickerMode,
+    initial_mode: Option<PickerMode>,
     store: &mut Store,
     initial_query: Option<String>,
     open_config: bool,
-) -> Result<Option<(PickerMode, String, bool)>> {
+) -> Result<Option<PickResult>> {
     let tty_write = File::options()
         .read(true)
         .write(true)
@@ -546,36 +413,42 @@ pub fn run(
         .ok()
         .and_then(|p| p.to_str().map(String::from));
 
-    let dir_items = load_items(PickerMode::Directories, store)?;
-    let cmd_items = load_items(PickerMode::Commands, store)?;
-    let ssh_items = load_items(PickerMode::SshHosts, store)?;
+    let mut rows: Vec<Row> = Vec::new();
+    for e in PickerEntry::from_dirs(store.list_directories()?) {
+        rows.push(Row { kind: PickerMode::Directories, entry: e });
+    }
+    for e in PickerEntry::from_cmds(store.list_commands()?) {
+        rows.push(Row { kind: PickerMode::Commands, entry: e });
+    }
+    for e in PickerEntry::from_ssh_hosts(store.list_ssh_hosts()?) {
+        rows.push(Row { kind: PickerMode::SshHosts, entry: e });
+    }
 
-    let active = match initial_mode {
-        PickerMode::Directories => 0,
-        PickerMode::Commands => 1,
-        PickerMode::SshHosts => 2,
+    let transitions = match &current_dir {
+        Some(cwd) => store.transitions_from(cwd).unwrap_or_default(),
+        None => HashMap::new(),
     };
 
     let cfg = Config::load();
     let theme = Theme::from_config(&cfg);
+
+    let mut list = UnifiedList::new(rows, current_dir.clone(), transitions, cfg.scoring.clone());
+    if let Some(mode) = initial_mode {
+        list.filter = match mode {
+            PickerMode::Directories => TypeFilter::Cd,
+            PickerMode::Commands => TypeFilter::Run,
+            PickerMode::SshHosts => TypeFilter::Ssh,
+        };
+        list.update_filter("");
+    }
 
     let initial_q = initial_query.unwrap_or_default();
     let initial_cursor = initial_q.chars().count();
     let mut state = AppState {
         query: initial_q,
         cursor: initial_cursor,
-        panels: {
-            let mut cmd_panel = PanelState::new(PickerMode::Commands, cmd_items);
-            cmd_panel.cwd = current_dir.clone();
-            [
-                PanelState::new(PickerMode::Directories, dir_items),
-                cmd_panel,
-                PanelState::new(PickerMode::SshHosts, ssh_items),
-            ]
-        },
-        active,
+        list,
         confirm_delete: false,
-        cwd_filter: false,
         show_help: false,
         show_config: if open_config {
             Some(ConfigDialog::from_config(&cfg))
@@ -591,14 +464,14 @@ pub fn run(
     };
 
     if !state.query.is_empty() {
-        state.update_all_filters();
+        state.update_filter();
     }
 
     // Register SIGWINCH handler for terminal resize
     let resize_flag = Arc::new(AtomicBool::new(false));
     signal_hook::flag::register(signal_hook::consts::SIGWINCH, Arc::clone(&resize_flag))?;
 
-    let result = (|| -> Result<Option<(PickerMode, String, bool)>> {
+    let result = (|| -> Result<Option<PickResult>> {
         // Initial clear to start with a clean screen
         terminal.clear()?;
         loop {
@@ -617,15 +490,10 @@ pub fn run(
                 match handle_key(key, &mut state) {
                     Action::ConfirmDelete => {
                         state.confirm_delete = false;
-                        let panel = state.active_panel_mut();
-                        if let Some(idx) = panel.selected_index() {
-                            let value = &panel.items[idx].value;
-                            let _ = store.forget(value);
-                            panel.items.remove(idx);
-                            panel.display_texts =
-                                panel.items.iter().map(|i| i.display.clone()).collect();
-                            let query = state.query.clone();
-                            state.active_panel_mut().update_filter(&query);
+                        if let Some(row_idx) = state.list.selected_row_index() {
+                            let value = state.list.rows[row_idx].entry.value.clone();
+                            let _ = store.forget(&value);
+                            state.list.remove_row(row_idx);
                         }
                     }
                     _ => {
@@ -635,17 +503,23 @@ pub fn run(
             } else {
                 match handle_key(key, &mut state) {
                     Action::Continue => {
-                        state.update_all_filters();
+                        state.update_filter();
                     }
                     action @ (Action::Select | Action::SelectEdit) => {
                         let edit = matches!(action, Action::SelectEdit);
-                        let panel = state.active_panel();
-                        if let Some(idx) = panel.selected_index() {
-                            let entry = &panel.items[idx];
-                            let output = entry.connect_value.as_ref()
+                        if let Some(row) = state.list.selected_row() {
+                            let entry = &row.entry;
+                            let output = entry
+                                .connect_value
+                                .as_ref()
                                 .unwrap_or(&entry.value)
                                 .clone();
-                            return Ok(Some((panel.mode, output, edit)));
+                            return Ok(Some(PickResult {
+                                kind: row.kind,
+                                output,
+                                key: entry.value.clone(),
+                                edit,
+                            }));
                         }
                         return Ok(None);
                     }
@@ -655,89 +529,78 @@ pub fn run(
                         }
                         return Ok(None);
                     }
-                    Action::SwitchPanel => {
-                        state.switch_panel();
+                    Action::CycleFilter => {
+                        state.list.cycle_filter();
                     }
-                    Action::SwitchPanelBack => {
-                        state.switch_panel_back();
+                    Action::CycleFilterBack => {
+                        state.list.cycle_filter_back();
                     }
                     Action::ToggleCwdFilter => {
-                        state.cwd_filter = !state.cwd_filter;
-                        let new_cmds = if state.cwd_filter {
-                            if let Some(ref cwd) = current_dir {
-                                PickerEntry::from_cmds(store.list_commands_by_cwd(cwd)?)
-                            } else {
-                                PickerEntry::from_cmds(store.list_commands()?)
-                            }
-                        } else {
-                            PickerEntry::from_cmds(store.list_commands()?)
-                        };
-                        let panel = &mut state.panels[1];
-                        panel.items = new_cmds;
-                        panel.display_texts = panel.items.iter().map(|i| i.display.clone()).collect();
-                        panel.selected = 0;
-                        panel.scroll_offset = 0;
-                        let query = state.query.clone();
-                        panel.update_filter(&query);
+                        let on = !state.list.cwd_filter;
+                        state.list.set_cwd_filter(on);
                     }
                     Action::CopyToClipboard => {
-                        let panel = state.active_panel();
-                        if let Some(idx) = panel.selected_index() {
-                            let entry = &panel.items[idx];
-                            let text = entry.connect_value.as_ref()
-                                .unwrap_or(&entry.value);
-                            if copy_to_clipboard(text).is_ok() {
+                        let text = state.list.selected_row().map(|row| {
+                            row.entry
+                                .connect_value
+                                .as_ref()
+                                .unwrap_or(&row.entry.value)
+                                .clone()
+                        });
+                        if let Some(text) = text {
+                            if copy_to_clipboard(&text).is_ok() {
                                 state.flash_message = Some(("Copied!".to_string(), Instant::now()));
                             }
                         }
                     }
                     Action::ToggleFavorite => {
-                        let panel = state.active_panel_mut();
-                        if let Some(idx) = panel.selected_index() {
-                            let value = &panel.items[idx].value;
-                            let new_fav = match panel.mode {
-                                PickerMode::Directories => store.toggle_favorite_dir(value),
-                                PickerMode::Commands => store.toggle_favorite_cmd(value),
-                                PickerMode::SshHosts => store.toggle_favorite_ssh(value),
+                        if let Some(row_idx) = state.list.selected_row_index() {
+                            let row = &state.list.rows[row_idx];
+                            let value = row.entry.value.clone();
+                            let new_fav = match row.kind {
+                                PickerMode::Directories => store.toggle_favorite_dir(&value),
+                                PickerMode::Commands => store.toggle_favorite_cmd(&value),
+                                PickerMode::SshHosts => store.toggle_favorite_ssh(&value),
                             };
                             if let Ok(fav) = new_fav {
-                                panel.items[idx].is_favorite = fav;
+                                state.list.rows[row_idx].entry.is_favorite = fav;
                             }
                         }
                     }
                     Action::Delete => {
-                        if state.active_panel().selected_index().is_some() {
+                        if let Some(row_idx) = state.list.selected_row_index() {
                             if state.config.confirm_delete {
                                 state.confirm_delete = true;
                             } else {
                                 // Delete immediately without confirmation
-                                let panel = state.active_panel_mut();
-                                if let Some(idx) = panel.selected_index() {
-                                    let value = &panel.items[idx].value;
-                                    let _ = store.forget(value);
-                                    panel.items.remove(idx);
-                                    panel.display_texts =
-                                        panel.items.iter().map(|i| i.display.clone()).collect();
-                                    let query = state.query.clone();
-                                    state.active_panel_mut().update_filter(&query);
-                                }
+                                let value = state.list.rows[row_idx].entry.value.clone();
+                                let _ = store.forget(&value);
+                                state.list.remove_row(row_idx);
                             }
                         }
                     }
                     Action::EditCommand => {
-                        let panel = state.active_panel();
-                        if let Some(idx) = panel.selected_index() {
-                            let entry = &panel.items[idx];
-                            let text = entry.connect_value.as_ref()
-                                .unwrap_or(&entry.value)
-                                .clone();
+                        let text = state.list.selected_row().map(|row| {
+                            row.entry
+                                .connect_value
+                                .as_ref()
+                                .unwrap_or(&row.entry.value)
+                                .clone()
+                        });
+                        if let Some(text) = text {
                             state.edit_dialog = Some(EditDialog::new(text));
                         }
                     }
                     Action::ExecuteEdit => {
                         if let Some(dialog) = state.edit_dialog.take() {
-                            let panel = state.active_panel();
-                            return Ok(Some((panel.mode, dialog.text, false)));
+                            if let Some(row) = state.list.selected_row() {
+                                return Ok(Some(PickResult {
+                                    kind: row.kind,
+                                    output: dialog.text.clone(),
+                                    key: dialog.text,
+                                    edit: false,
+                                }));
+                            }
                         }
                     }
                     Action::ToggleHelp => {
@@ -1055,5 +918,16 @@ mod unified_tests {
             .collect();
         assert!(shown.contains(&"ls".to_string()));
         assert!(shown.contains(&"/target".to_string()));
+    }
+
+    #[test]
+    fn test_sigils_are_distinct_and_not_the_cursor() {
+        let s = [
+            PickerMode::Directories.sigil(),
+            PickerMode::Commands.sigil(),
+            PickerMode::SshHosts.sigil(),
+        ];
+        assert_eq!(s, ["/", "$", "@"]);
+        assert!(!s.contains(&">"), "sigil must not collide with the selection cursor");
     }
 }
