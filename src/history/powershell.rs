@@ -11,6 +11,21 @@ pub fn parse_history_with_cwd() -> Result<Vec<(String, Option<String>)>> {
 }
 
 pub fn parse_history_file_with_cwd(path: &str) -> Result<Vec<(String, Option<String>)>> {
+    Ok(dedup_with_cwd(
+        parse_history_file_pairs_raw(path)?,
+        should_skip,
+    ))
+}
+
+/// Parse PowerShell history and guess cwd for each command by tracking cd commands,
+/// without deduping. Used to derive directory/ssh transitions, where a route
+/// walked more than once must be counted more than once.
+pub fn parse_history_with_cwd_raw() -> Result<Vec<(String, Option<String>)>> {
+    let path = psreadline_history_path();
+    parse_history_file_pairs_raw(&path)
+}
+
+pub fn parse_history_file_pairs_raw(path: &str) -> Result<Vec<(String, Option<String>)>> {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(_) => return Ok(vec![]),
@@ -41,15 +56,14 @@ pub fn parse_history_file_with_cwd(path: &str) -> Result<Vec<(String, Option<Str
         }
 
         // Track cd/Set-Location for cwd guessing, also try the shared resolver
-        if let Some(dir) = extract_cd_target_no_check(&cmd)
-            .or_else(|| resolve_cd_target(&cmd))
-        {
+        let next_cwd = extract_cd_target_no_check(&cmd).or_else(|| resolve_cd_target(&cmd));
+        pairs.push((cmd, current_cwd.clone()));
+        if let Some(dir) = next_cwd {
             current_cwd = Some(dir);
         }
-        pairs.push((cmd, current_cwd.clone()));
     }
 
-    Ok(dedup_with_cwd(pairs, should_skip))
+    Ok(pairs)
 }
 
 /// Resolve PowerShell-specific cd targets (Set-Location, sl) without existence check.

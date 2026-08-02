@@ -152,6 +152,31 @@ pub fn parse_ssh_command(cmd: &str) -> Option<SshConfigHost> {
     })
 }
 
+/// Derive (from_cwd, kind, target) edges from chronological (command, cwd) pairs.
+/// `cwd` is the directory the command ran *in*, so it is the origin of any jump
+/// the command performs. Pairs with an unknown cwd, and `cd` targets that cannot
+/// be resolved to an absolute path, are skipped.
+pub fn extract_transitions(
+    pairs: &[(String, Option<String>)],
+) -> Vec<(String, String, String)> {
+    let mut out = Vec::new();
+    for (cmd, cwd) in pairs {
+        let Some(from) = cwd.as_deref() else {
+            continue;
+        };
+        if let Some(target) = resolve_cd_target(cmd) {
+            if target != from {
+                out.push((from.to_string(), "cd".to_string(), target));
+            }
+            continue;
+        }
+        if let Some(host) = parse_ssh_command(cmd) {
+            out.push((from.to_string(), "ssh".to_string(), host.host));
+        }
+    }
+    out
+}
+
 /// Format SSH connection args as they would be passed to ssh.
 /// This becomes the `host` field (unique key) and the value output by TUI.
 pub fn format_ssh_args(user: Option<&str>, hostname: &str, port: Option<i32>) -> String {

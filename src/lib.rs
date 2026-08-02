@@ -264,6 +264,16 @@ fn cmd_import(shell: Option<cli::ShellType>, file: Option<String>) -> Result<()>
     let cmd_count = commands.len();
     store.import_commands_with_cwd_batch(&commands, "history")?;
 
+    let raw_pairs = match shell {
+        cli::ShellType::Bash => history::bash::parse_history_with_cwd_raw()?,
+        cli::ShellType::Zsh => history::zsh::parse_history_with_cwd_raw()?,
+        cli::ShellType::Fish => history::fish::parse_history_with_cwd_raw()?,
+        cli::ShellType::Powershell => history::powershell::parse_history_with_cwd_raw()?,
+    };
+    let transitions = history::extract_transitions(&raw_pairs);
+    let transition_count = transitions.len();
+    store.record_transitions_batch(&transitions)?;
+
     let directories = match shell {
         cli::ShellType::Bash => history::bash::extract_directories_from_history()?,
         cli::ShellType::Zsh => history::zsh::extract_directories_from_history()?,
@@ -288,8 +298,8 @@ fn cmd_import(shell: Option<cli::ShellType>, file: Option<String>) -> Result<()>
     store.import_ssh_hosts_batch(&ssh_history_hosts, "history")?;
 
     eprintln!(
-        "Imported {} commands, {} directories, {} SSH hosts (config) + {} SSH hosts (history) from {:?}",
-        cmd_count, dir_count, ssh_config_count, ssh_hist_count, shell
+        "Imported {} commands, {} directories, {} SSH hosts (config) + {} SSH hosts (history), {} transitions from {:?}",
+        cmd_count, dir_count, ssh_config_count, ssh_hist_count, transition_count, shell
     );
     Ok(())
 }
