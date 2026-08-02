@@ -37,3 +37,13 @@ pub struct SshHostEntry {
     pub is_favorite: bool,
     pub source: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Transition {
+    pub from_cwd: String,
+    pub kind: String,
+    pub target: String,
+    pub score: f64,
+    pub count: i64,
+    pub last_time: i64,
+}

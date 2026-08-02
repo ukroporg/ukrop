@@ -29,6 +29,14 @@ impl Store {
         Ok(Store { conn })
     }
 
+    pub(crate) fn conn_ref(&self) -> &rusqlite::Connection {
+        &self.conn
+    }
+
+    pub(crate) fn conn_mut(&mut self) -> &mut rusqlite::Connection {
+        &mut self.conn
+    }
+
     pub fn record_visit(&mut self, path: &str) -> Result<()> {
         let tx = self.conn.transaction()?;
         let now = chrono::Utc::now().timestamp();
