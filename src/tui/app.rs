@@ -70,7 +70,7 @@ pub enum Action {
     ExecuteEdit,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PickerMode {
     Directories,
     Commands,
