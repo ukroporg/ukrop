@@ -109,11 +109,11 @@ impl ConfigDialog {
                 }
                 ("substring_bonus", FieldKind::Uint { value }) => {
                     cfg.scoring.substring_bonus = value.parse::<u32>()
-                        .map_err(|_| format!("Invalid substring_bonus: {}", value))?;
+                        .map_err(|_| format!("Invalid substring_bonus: {}", value))? as i32;
                 }
                 ("prefix_bonus", FieldKind::Uint { value }) => {
                     cfg.scoring.prefix_bonus = value.parse::<u32>()
-                        .map_err(|_| format!("Invalid prefix_bonus: {}", value))?;
+                        .map_err(|_| format!("Invalid prefix_bonus: {}", value))? as i32;
                 }
                 ("stale_days", FieldKind::Uint { value }) => {
                     cfg.cleanup.stale_days = value.parse::<u64>()

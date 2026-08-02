@@ -16,8 +16,28 @@ pub struct Config {
 #[serde(default)]
 pub struct ScoringConfig {
     pub frecency_weight: f64,
-    pub substring_bonus: u32,
-    pub prefix_bonus: u32,
+    pub frecency_cap: i32,
+    pub substring_bonus: i32,
+    pub prefix_bonus: i32,
+    /// Negative. Applied to fuzzy-only matches so they rank below substring matches.
+    pub fuzzy_penalty: i32,
+    pub favorite_bonus: i32,
+    pub recency_24h_bonus: i32,
+    pub recency_7d_bonus: i32,
+    pub cwd_bonus: i32,
+    pub transition_weight: f64,
+    pub transition_cap: i32,
+    pub brevity_bonus_max: i32,
+    pub type_bonus: TypeBonusConfig,
+}
+
+/// Position-dependent bonus for `cd` and `ssh` rows. Index is the number of rows
+/// of that type already emitted above; the last element is the floor for all
+/// higher indices.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TypeBonusConfig {
+    pub schedule: Vec<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -118,8 +138,26 @@ impl Default for ScoringConfig {
     fn default() -> Self {
         Self {
             frecency_weight: 100.0,
+            frecency_cap: 5000,
             substring_bonus: 8000,
             prefix_bonus: 10000,
+            fuzzy_penalty: -4000,
+            favorite_bonus: 5000,
+            recency_24h_bonus: 6000,
+            recency_7d_bonus: 2500,
+            cwd_bonus: 4000,
+            transition_weight: 100.0,
+            transition_cap: 4000,
+            brevity_bonus_max: 3000,
+            type_bonus: TypeBonusConfig::default(),
+        }
+    }
+}
+
+impl Default for TypeBonusConfig {
+    fn default() -> Self {
+        Self {
+            schedule: vec![3000, 1500, 0, -1500, -3000],
         }
     }
 }
@@ -268,15 +306,53 @@ mod tests {
     fn test_defaults() {
         let c = Config::default();
         assert_eq!(c.scoring.frecency_weight, 100.0);
+        assert_eq!(c.scoring.frecency_cap, 5000);
         assert_eq!(c.scoring.substring_bonus, 8000);
         assert_eq!(c.scoring.prefix_bonus, 10000);
+        assert_eq!(c.scoring.fuzzy_penalty, -4000);
+        assert_eq!(c.scoring.favorite_bonus, 5000);
+        assert_eq!(c.scoring.recency_24h_bonus, 6000);
+        assert_eq!(c.scoring.recency_7d_bonus, 2500);
+        assert_eq!(c.scoring.cwd_bonus, 4000);
+        assert_eq!(c.scoring.transition_weight, 100.0);
+        assert_eq!(c.scoring.transition_cap, 4000);
+        assert_eq!(c.scoring.brevity_bonus_max, 3000);
+        assert_eq!(c.scoring.type_bonus.schedule, vec![3000, 1500, 0, -1500, -3000]);
         assert_eq!(c.cleanup.stale_days, 90);
         assert!(c.ignore_patterns.is_empty());
         assert_eq!(c.theme.preset, ThemePreset::Default);
         assert!(c.theme.selection_bold);
         assert!(c.theme.match_underline);
         assert!(!c.theme.favorite_italic);
-        assert_eq!(c.layout.left_panel_pct, 25);
-        assert_eq!(c.layout.cd_panel_pct, 75);
+    }
+
+    #[test]
+    fn test_partial_config_keeps_defaults() {
+        // An existing user config predating this feature must still load.
+        let text = r#"
+ignore_patterns = ["ls"]
+
+[scoring]
+frecency_weight = 250.0
+
+[layout]
+left_panel_pct = 30
+cd_panel_pct = 60
+"#;
+        let c: Config = toml::from_str(text).expect("old config must still parse");
+        assert_eq!(c.scoring.frecency_weight, 250.0);
+        assert_eq!(c.scoring.recency_24h_bonus, 6000, "unset key falls back to default");
+        assert_eq!(c.scoring.type_bonus.schedule, vec![3000, 1500, 0, -1500, -3000]);
+        assert_eq!(c.ignore_patterns, vec!["ls".to_string()]);
+    }
+
+    #[test]
+    fn test_type_bonus_schedule_override() {
+        let text = r#"
+[scoring.type_bonus]
+schedule = [100, 0, -100]
+"#;
+        let c: Config = toml::from_str(text).unwrap();
+        assert_eq!(c.scoring.type_bonus.schedule, vec![100, 0, -100]);
     }
 }
