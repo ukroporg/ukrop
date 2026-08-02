@@ -3,6 +3,7 @@ pub mod config_dialog;
 pub mod edit_dialog;
 mod fuzzy;
 mod input;
+pub mod ranking;
 pub mod theme;
 mod tty_reader;
 mod ui;

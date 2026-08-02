@@ -85,6 +85,15 @@ impl PickerMode {
             PickerMode::SshHosts => "ssh",
         }
     }
+
+    /// Stable identifier used as the `kind` column in the transitions table.
+    pub fn db_kind(self) -> &'static str {
+        match self {
+            PickerMode::Directories => "cd",
+            PickerMode::Commands => "run",
+            PickerMode::SshHosts => "ssh",
+        }
+    }
 }
 
 pub struct PanelState {
