@@ -10,7 +10,7 @@ mod ui;
 
 use anyhow::Result;
 
-pub use app::PickerMode;
+pub use app::{PickerMode, UnifiedList};
 
 #[derive(Clone)]
 pub struct PickerEntry {
