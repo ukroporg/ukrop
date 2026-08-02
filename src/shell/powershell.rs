@@ -88,7 +88,7 @@ function global:ukrop {
             }
             '^ssh:(.*)' {
                 $sshArgs = $Matches[1]
-                & ukrop hook-ssh --host $sshArgs --cwd (Get-Location).ProviderPath 2>$null
+                & ukrop hook-ssh --host $sshArgs 2>$null
                 Invoke-Expression "ssh $sshArgs"
             }
         }

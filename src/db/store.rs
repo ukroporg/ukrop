@@ -327,12 +327,14 @@ impl Store {
 
     /// Try to match SSH command args against existing hosts and bump frecency.
     /// Matches by: exact host alias, hostname, user@hostname, or user@host.
-    /// Returns true if a match was found.
-    pub fn record_ssh_from_command(&mut self, args: &str) -> Result<bool> {
+    /// Returns the resolved host alias (the same key `ssh_hosts.host` uses,
+    /// and the same value picker rows key on) if a match — or a new record —
+    /// was made, so callers can key transitions against it.
+    pub fn record_ssh_from_command(&mut self, args: &str) -> Result<Option<String>> {
         // Parse the ssh target from args (skip flags like -p, -i, etc.)
         let target = parse_ssh_target(args);
         if target.is_empty() {
-            return Ok(false);
+            return Ok(None);
         }
 
         // Split user@host if present
@@ -354,7 +356,7 @@ impl Store {
 
         if let Some(host) = alias_match {
             self.record_ssh_host(&host, None, None, None, "hook")?;
-            return Ok(true);
+            return Ok(Some(host));
         }
 
         // Try matching by hostname (with optional user)
@@ -387,12 +389,12 @@ impl Store {
 
         if let Some(host) = matched_host {
             self.record_ssh_host(&host, None, None, None, "hook")?;
-            return Ok(true);
+            return Ok(Some(host));
         }
 
         // No existing match — record as new host
         self.record_ssh_host(&target, None, None, None, "hook")?;
-        Ok(true)
+        Ok(Some(target))
     }
 
     pub fn forget(&mut self, target: &str) -> Result<bool> {

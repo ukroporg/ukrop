@@ -48,7 +48,7 @@ function ukrop
                     eval $cmd
                 case 'ssh:*'
                     set -l ssh_args (string sub -s 5 -- $result)
-                    command ukrop hook-ssh --host "$ssh_args" --cwd "$PWD" &>/dev/null &
+                    command ukrop hook-ssh --host "$ssh_args" &>/dev/null &
                     ssh (string split ' ' -- $ssh_args)
             end
         end

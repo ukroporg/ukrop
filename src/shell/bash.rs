@@ -65,7 +65,7 @@ ukrop() {
                     ;;
                 ssh:*)
                     local ssh_args="${result#ssh:}"
-                    { command ukrop hook-ssh --host "$ssh_args" --cwd "$PWD" &>/dev/null & disown; } 2>/dev/null
+                    { command ukrop hook-ssh --host "$ssh_args" &>/dev/null & disown; } 2>/dev/null
                     ssh $ssh_args
                     ;;
             esac

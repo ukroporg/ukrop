@@ -43,10 +43,24 @@ fn test_init_scripts_pass_new_hook_flags() {
             "{} init script must pass --shell-id",
             shell
         );
+        // The picker-selection `ssh:*` branch must NOT pass --cwd to
+        // hook-ssh: Task 7's `record_pick_transition` call in
+        // `run_tui_inner` already records that exact transition
+        // synchronously for every pick. Having the shell wrapper also pass
+        // --cwd here double-records the same transition (or, worse, records
+        // it under a different key than the picker used, since the shell
+        // only has the raw connect string while the picker already resolved
+        // the alias) — see Task 8 review findings 1 and 2. Do not add
+        // --cwd back to this call.
+        let ssh_hook_line = script
+            .lines()
+            .find(|l| l.contains("hook-ssh"))
+            .unwrap_or_else(|| panic!("{} init script must call hook-ssh", shell));
         assert!(
-            script.contains("hook-ssh") && script.contains("--cwd"),
-            "{} init script must pass --cwd to hook-ssh",
-            shell
+            !ssh_hook_line.contains("--cwd"),
+            "{} init script's hook-ssh call (picker-selection branch) must not pass --cwd: {}",
+            shell,
+            ssh_hook_line
         );
     }
 }

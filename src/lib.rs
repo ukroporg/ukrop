@@ -206,11 +206,13 @@ fn cmd_hook_cmd(cmd: &str, exit_code: Option<i64>, cwd: Option<String>, duration
     let trimmed = cmd.trim();
     if trimmed.starts_with("ssh ") && !trimmed.starts_with("ssh-") {
         let args = &trimmed[4..];
-        if let Ok(true) = store.record_ssh_from_command(args.trim()) {
+        // Key the transition on the alias `record_ssh_from_command` actually
+        // resolved to — picker rows key on `ssh_hosts.host`, and that alias
+        // can differ from the raw connect string (e.g. `deploy@1.2.3.4`
+        // resolving to the existing host `prod`).
+        if let Ok(Some(host)) = store.record_ssh_from_command(args.trim()) {
             if let Some(ref d) = cwd {
-                if let Some(h) = history::parse_ssh_command(trimmed) {
-                    let _ = record_pick_transition(&mut store, Some(d), "ssh", &h.host);
-                }
+                let _ = record_pick_transition(&mut store, Some(d), "ssh", &host);
             }
         }
     }
