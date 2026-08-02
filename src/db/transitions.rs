@@ -65,6 +65,13 @@ impl Store {
     /// Delete transitions untouched for longer than `max_age_days`.
     pub fn prune_transitions(&mut self, max_age_days: u64) -> Result<usize> {
         let cutoff = chrono::Utc::now().timestamp() - (max_age_days * 24 * 3600) as i64;
+        // Deliberately `<=`, not `<`: with `max_age_days == 0`, `cutoff == now()`,
+        // and a row recorded in the same wall-clock second as this call has
+        // `last_time == cutoff`. A zero-day window must still be able to prune
+        // that row (see test_cleanup_prunes_stale_transitions_and_pwd_keys), so a
+        // strict `<` would silently never match same-second rows. This is a
+        // deliberate difference from `cleanup_stale_directories`'s strict `<`
+        // (store.rs), which doesn't need to handle a zero-day boundary.
         let n = self
             .conn_mut()
             .execute("DELETE FROM transitions WHERE last_time <= ?1", [cutoff])?;
@@ -121,6 +128,9 @@ impl Store {
                 .filter(|(_, v)| {
                     v.split_once('\t')
                         .and_then(|(ts, _)| ts.parse::<i64>().ok())
+                        // Deliberately `<=`, not `<` — see the comment on
+                        // prune_transitions above: a zero-day window must
+                        // still prune a key written in the same second.
                         .map(|ts| ts <= cutoff)
                         .unwrap_or(true) // malformed / legacy value: prune it
                 })

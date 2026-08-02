@@ -331,13 +331,6 @@ impl ConfigDialog {
         }
         true // close dialog
     }
-
-    /// Returns true if a theme/layout field is focused (for live preview)
-    pub fn is_theme_or_layout_field(&self) -> bool {
-        let (fi, _) = self.focused_field();
-        let section = self.fields[fi].section;
-        section == "Theme" || section == "Layout"
-    }
 }
 
 #[cfg(test)]
@@ -380,6 +373,29 @@ mod tests {
         assert!(
             !d.fields.iter().any(|f| f.label.contains("panel_pct")),
             "panel ratio fields are obsolete in the unified list"
+        );
+    }
+
+    /// The dialog has no `left_panel_pct`/`cd_panel_pct` fields, so nothing
+    /// in `self.fields` carries a user's custom `[layout]` values. `to_config`
+    /// must still preserve them via the dialog's own `layout` copy instead of
+    /// silently resetting them to `Config::default()`'s 25/75 on every save.
+    #[test]
+    fn test_to_config_preserves_non_default_layout_values() {
+        let mut cfg = crate::config::Config::default();
+        cfg.layout.left_panel_pct = 33;
+        cfg.layout.cd_panel_pct = 44;
+
+        let dialog = ConfigDialog::from_config(&cfg);
+        let round_tripped = dialog.to_config().expect("valid default fields");
+
+        assert_eq!(
+            round_tripped.layout.left_panel_pct, 33,
+            "left_panel_pct must round-trip unchanged, not reset to default"
+        );
+        assert_eq!(
+            round_tripped.layout.cd_panel_pct, 44,
+            "cd_panel_pct must round-trip unchanged, not reset to default"
         );
     }
 }
