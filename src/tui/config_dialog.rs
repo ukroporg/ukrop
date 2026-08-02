@@ -108,12 +108,12 @@ impl ConfigDialog {
                         .map_err(|_| format!("Invalid frecency_weight: {}", value))?;
                 }
                 ("substring_bonus", FieldKind::Uint { value }) => {
-                    cfg.scoring.substring_bonus = value.parse::<u32>()
-                        .map_err(|_| format!("Invalid substring_bonus: {}", value))? as i32;
+                    cfg.scoring.substring_bonus = value.parse::<i32>()
+                        .map_err(|_| format!("Invalid substring_bonus: {}", value))?;
                 }
                 ("prefix_bonus", FieldKind::Uint { value }) => {
-                    cfg.scoring.prefix_bonus = value.parse::<u32>()
-                        .map_err(|_| format!("Invalid prefix_bonus: {}", value))? as i32;
+                    cfg.scoring.prefix_bonus = value.parse::<i32>()
+                        .map_err(|_| format!("Invalid prefix_bonus: {}", value))?;
                 }
                 ("stale_days", FieldKind::Uint { value }) => {
                     cfg.cleanup.stale_days = value.parse::<u64>()
@@ -356,5 +356,39 @@ impl ConfigDialog {
         let (fi, _) = self.focused_field();
         let section = self.fields[fi].section;
         section == "Theme" || section == "Layout"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `substring_bonus`/`prefix_bonus` are `i32` in `ScoringConfig`, but the
+    /// `Uint` widget's `handle_char` imposes no length cap on digit entry
+    /// (only rejects non-digits). A value that overflows `i32` but fits in
+    /// `u32` (e.g. 3_000_000_000) must be rejected by `to_config`, not
+    /// silently bit-reinterpreted into a negative number via `as i32`.
+    #[test]
+    fn test_out_of_range_scoring_value_is_rejected_not_wrapped() {
+        let mut dialog = ConfigDialog::from_config(&Config::default());
+
+        // Focus the substring_bonus field (index 1) and replace its value
+        // with an out-of-i32-range, in-u32-range string, exactly as a user
+        // typing digits via handle_char would produce.
+        dialog.focused = 1;
+        assert_eq!(dialog.fields[1].label, "substring_bonus");
+        if let FieldKind::Uint { value } = &mut dialog.fields[1].kind {
+            value.clear();
+        }
+        for c in "3000000000".chars() {
+            dialog.handle_char(c);
+        }
+
+        let result = dialog.to_config();
+        assert!(
+            result.is_err(),
+            "out-of-range substring_bonus must be rejected, got {:?}",
+            result.map(|c| c.scoring.substring_bonus)
+        );
     }
 }
