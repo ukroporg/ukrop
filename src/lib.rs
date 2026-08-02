@@ -93,8 +93,19 @@ fn run_tui_inner(initial_mode: Option<tui::PickerMode>, initial_query: Option<St
     let db_path = util::db_path()?;
     let mut store = db::store::Store::open(&db_path)?;
 
+    let current_dir = std::env::current_dir()
+        .ok()
+        .and_then(|p| p.to_str().map(String::from));
+
     match tui::run_picker(initial_mode, &mut store, initial_query, open_config)? {
         Some(result) => {
+            // Best-effort: a recording failure must never block the selection.
+            let _ = record_pick_transition(
+                &mut store,
+                current_dir.as_deref(),
+                result.kind.db_kind(),
+                &result.key,
+            );
             let prefix = if result.edit { "edit:" } else { "" };
             match result.kind {
                 tui::PickerMode::Directories => println!("{}cd:{}", prefix, result.output),
@@ -105,6 +116,27 @@ fn run_tui_inner(initial_mode: Option<tui::PickerMode>, initial_query: Option<St
         }
         None => std::process::exit(130),
     }
+}
+
+/// Record a directory-to-target jump. `kind` is "cd", "run" or "ssh"; only "cd"
+/// and "ssh" produce a transition. A missing origin, or an origin equal to the
+/// target, is a no-op.
+pub fn record_pick_transition(
+    store: &mut db::store::Store,
+    from_cwd: Option<&str>,
+    kind: &str,
+    target: &str,
+) -> Result<()> {
+    if kind == "run" || target.is_empty() {
+        return Ok(());
+    }
+    let Some(from) = from_cwd else {
+        return Ok(());
+    };
+    if from == target {
+        return Ok(());
+    }
+    store.record_transition(from, kind, target)
 }
 
 fn cmd_config() -> Result<()> {
