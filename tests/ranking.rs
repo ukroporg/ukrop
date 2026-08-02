@@ -55,27 +55,47 @@ fn test_substring_match_beats_fuzzy_match_of_equal_merit() {
     let mut l = UnifiedList::new(
         vec![
             Row { kind: PickerMode::Commands, entry: entry("clear", 1.0, HOUR) },
-            Row { kind: PickerMode::Commands, entry: entry("carcass", 1.0, HOUR) },
+            // Must NOT start with the query, or it classifies as MatchKind::Prefix
+            // (prefix_bonus + substring_bonus) instead of the MatchKind::Substring
+            // (substring_bonus alone) this test means to pin — see the fixture bug
+            // found and fixed in the two fuzzy-penalty tests below for exactly this
+            // failure mode.
+            Row { kind: PickerMode::Commands, entry: entry("~/old/carcass", 1.0, HOUR) },
         ],
         None,
         HashMap::new(),
         ScoringConfig::default(),
     );
     l.update_filter("car");
-    // "carcass" contains "car"; "clear" only fuzzy-matches c-a-r.
-    assert_eq!(shown(&l)[0], "carcass");
+    // "~/old/carcass" contains "car" as a substring (not a prefix, since the
+    // string starts with "~"); "clear" only fuzzy-matches c-a-r. This is the
+    // substring-vs-fuzzy tier at equal merit (frecency, recency, favorite,
+    // cwd all tied) — the boundary the spec's worked example is about.
+    assert_eq!(shown(&l)[0], "~/old/carcass");
 }
 
 // Pins the fuzzy/substring boundary from the approved spec's worked example
-// (.claude/superpowers/specs/2026-08-02-unified-picker-design.md:221): a fuzzy
+// (.claude/superpowers/specs/2026-08-02-unified-picker-design.md:221), using
+// the spec's own literal fixture string `~/old/carcass` so there is zero room
+// to wonder whether the fixture was tuned rather than corrected: a fuzzy
 // match with favorite + cwd + 24h-recency stacked on top can outscore a stale,
 // SUBSTRING-only match (fuzzy_penalty -4,000 vs. substring_bonus +8,000 is a
 // 12,000 gap, crossable by 15,000 of stackable merit).
 //
+// Measured base scores (ScoringConfig::default()):
+//   "clear" (fuzzy, favorite, cwd_match, 60s old):        base = 18,991
+//   "~/old/carcass" (substring, 200d stale, no favorite):  base = 10,891
+// "clear" wins by 8,100. Note this margin also banks a ~4,998-point frecency
+// edge (50.0 vs. 0.02) on top of the 15,000 of favorite/cwd/recency merit, so
+// it does not tightly pin the 12,000-vs-15,000 boundary on its own — losing
+// just the favorite weight, for instance, would still likely pass here. That
+// narrower regression (a favorite failing to surface) is what
+// `test_favorites_survive_the_empty_query_view` below is for.
+//
 // The stale fixture must NOT start with the query ("car"), or it becomes a
 // PREFIX match instead of a substring match, which is a different, much wider
 // gap that this test is not meant to probe (see
-// test_fuzzy_penalty_is_not_crossable_against_a_prefix_match below).
+// test_fuzzy_penalty_is_not_crossable_by_favorite_cwd_and_recency_alone below).
 #[test]
 fn test_fuzzy_penalty_is_crossable_by_overwhelming_merit() {
     let mut fresh = entry("clear", 50.0, 60);
@@ -84,7 +104,7 @@ fn test_fuzzy_penalty_is_crossable_by_overwhelming_merit() {
     let mut l = UnifiedList::new(
         vec![
             Row { kind: PickerMode::Commands, entry: fresh },
-            Row { kind: PickerMode::Commands, entry: entry("~/old/carcass-utility", 0.02, 200 * DAY) },
+            Row { kind: PickerMode::Commands, entry: entry("~/old/carcass", 0.02, 200 * DAY) },
         ],
         Some("/here".to_string()),
         HashMap::new(),
@@ -101,17 +121,30 @@ fn test_fuzzy_penalty_is_crossable_by_overwhelming_merit() {
 // Companion to the test above: pins the OTHER side of the boundary. A prefix
 // match ("carcass-utility-script" starts with "car") is the strongest
 // possible signal that the user typed the thing they want, and the fuzzy
-// penalty must NOT be crossable against it even by favorite + cwd + 24h
-// recency stacked together (fuzzy_penalty -4,000 vs. prefix_bonus +
-// substring_bonus +18,000 is a 22,000 gap, wider than the 15,000 of
-// stackable merit that closed the substring-only gap above).
+// penalty must NOT be crossable against it by favorite + cwd + 24h recency
+// alone (fuzzy_penalty -4,000 vs. prefix_bonus + substring_bonus +18,000 is a
+// 22,000 gap, wider than the 15,000 of favorite/cwd/recency merit that closed
+// the substring-only gap above).
+//
+// This is deliberately scoped to "by favorite + cwd + recency alone": prefix
+// IS crossable in a degenerate corner not exercised here — max theoretical
+// merit differential is favorite 5,000 + cwd 4,000 + recency 6,000 +
+// frecency_cap 5,000 + brevity_max 3,000 = 23,000 > the 22,000 gap, reachable
+// when the prefix competitor also has a >=200-char display (brevity floors at
+// 0) and zero frecency. This test's fixture keeps the competitor's frecency
+// and brevity intact, so only the favorite/cwd/recency stack is under test.
 //
 // Measured base scores for this exact fixture (ScoringConfig::default()):
 //   "clear" (fuzzy, favorite, cwd_match, 60s old):            base = 18,991
 //   "carcass-utility-script" (prefix+substring, 200d stale):  base = 20,756
-// The stale prefix match wins by 1,765.
+// The stale prefix match wins by 1,765. That margin is deliberately a knife
+// edge, not a comfortable one: it will flip under an intentional
+// recalibration (e.g. favorite_bonus 5,000 -> 6,800 alone closes it). If this
+// assertion starts failing, read it as a signal that the weights moved —
+// check `src/config.rs` for an intentional change before assuming a bug —
+// not as proof the tier boundary broke.
 #[test]
-fn test_fuzzy_penalty_is_not_crossable_against_a_prefix_match() {
+fn test_fuzzy_penalty_is_not_crossable_by_favorite_cwd_and_recency_alone() {
     let mut fresh = entry("clear", 50.0, 60);
     fresh.cwd = Some("/here".to_string());
     fresh.is_favorite = true;
