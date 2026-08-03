@@ -41,7 +41,7 @@ source "$HOME/.cargo/env"
 - Always update documentation (README.md, CLAUDE.md, doc/) when changing features, architecture, or behavior.
 - `doc/usage.md` — detailed usage, shell integration, database schema, how it works
 - `doc/dev.md` — development workflow, project structure, packaging
-- `doc/search.md` — search modes (fuzzy vs substring) and ranking formula
+- `doc/search.md` — search modes (literal tier vs fuzzy/token tier, including how spaces are handled) and ranking formula
 
 ## Key Architecture
 
@@ -51,6 +51,7 @@ source "$HOME/.cargo/env"
 - Optional config at `~/.config/ukrop/config.toml` — ignore patterns, scoring weights, cleanup settings, theme presets (12 built-in), `[layout]` (deprecated as of 0.20.0: parsed for back-compat, ignored, not shown in the config editor). Override via `UKROP_CONFIG_PATH`.
 - In-TUI command editor accessible via F2 key — opens a 10-line dialog pre-filled with the selected command for editing before execution. Enter inserts newline, F5 executes, Esc cancels. Supports Up/Down arrow navigation between lines.
 - In-TUI config editor accessible via F9 key or `ukrop config` subcommand. Live preview of theme changes; Esc cancels, F9/Ctrl+S saves.
+- Search: one two-tier path for every query. Tier 1 is a literal `Atom` (whole query, spaces included); tier 2 is a nucleo `Pattern`, which splits on whitespace so every token must appear, in any order. A space therefore ranks rows rather than excluding them. `match_positions` mirrors both tiers so highlighting matches what matched.
 - Ranking: one formula scores every row (cd/run/ssh) — match quality, frecency, mutually-exclusive recency tiers, locality (`cwd_bonus` for run, decayed `transitions`-table score for cd/ssh), brevity, favorites, plus a position-dependent type-diversity bonus applied by a three-way merge so the `All` view doesn't get dominated by one type. Fuzzy-tier rows additionally get a contiguity bonus (`sum(run_len^2) - match_len`, weighted and capped) so `seo`+`2` outranks a scattered `s`…`e`…`o`…`2`; substring rows skip it, being a single run by definition. See `doc/search.md`.
 - `transitions` table (schema v5) records directory→directory and directory→host jumps, read once at TUI startup. Three capture paths: picker-initiated picks (synchronous, exact), manual `cd` via the `hook --shell-id` prompt hook, manual `ssh` via `hook-cmd` detecting the `ssh ` prefix. `ukrop import` backfills it from shell history.
 - Non-interactive mode: `ukrop cd <query>` prints best match when stdout is not a TTY.
@@ -58,7 +59,7 @@ source "$HOME/.cargo/env"
 
 ## Tests
 
-192 tests total. Run with `cargo test`. No special setup needed — integration tests use tempfile for isolated DB instances.
+199 tests total. Run with `cargo test`. No special setup needed — integration tests use tempfile for isolated DB instances.
 
 ## Packaging
 

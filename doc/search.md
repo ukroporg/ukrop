@@ -19,16 +19,31 @@ still appear — just below the substring matches.
 | `curl` | `curl -H ...`, `curling` | —                                                              |
 | `auth` | `authentication_ctrl`    | `authconrb` (not a real example, but `a..u..t..h` would match) |
 
-### Spaces in query — substring only
+### Spaces in query — literal phrase, then tokens
 
-When the query contains a space, it switches to literal substring matching.
-The entire query including spaces must appear as-is in the item.
+A query containing spaces uses the same two tiers, and the two tiers read the
+whitespace differently. Tier 1 matches the **whole query literally**, spaces
+included. Tier 2 splits the query on whitespace and requires **every token** to
+appear somewhere in the item, in any order.
 
-| Query     | Matches                   | Doesn't match      |
-|-----------|---------------------------|--------------------|
-| `c `      | `c test`, `c d:m:m`       | `cat`, `curl`      |
-| `git p`   | `git push`, `git pull`    | `gitpod`           |
-| `curl -H` | `curl -H 'User-Agent...'` | `curl https://...` |
+So a space no longer excludes rows — it ranks them. Rows containing the exact
+phrase sort above rows that merely contain all the words.
+
+| Query      | Literal phrase (tier 1)   | All tokens present (tier 2)          | Doesn't match      |
+|------------|---------------------------|---------------------------------------|--------------------|
+| `c `       | `c test`, `c d:m:m`       | `cat`, `curl`                         | `ls -la`           |
+| `git p`    | `git push`, `git pull`    | `gitpod`, `patch git`                 | `git commit`       |
+| `curl -H`  | `curl -H 'User-Agent...'` | `curl https://... -Host`              | `wget -H`          |
+| `run cc h` | `uv run cc homepages`     | `uv run cc fenix-homepages --out ...` | `uv run cc sync`   |
+
+Tokens are found anywhere in the row, including inside flags — `uv run cc rdap
+--help` matches `run cc h`, because the `h` is in `--help`. That breadth is the
+point of the tier; ranking, not exclusion, is what separates the good matches
+from the incidental ones.
+
+Since tier 2 is the fuzzy tier, token matches take `fuzzy_penalty` and are
+eligible for the [contiguity bonus](#contiguity-fuzzy-tier-only), so the
+tightest token clusters float to the top of that tier.
 
 ## Match highlighting
 
