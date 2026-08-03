@@ -299,3 +299,63 @@ fn test_literal_substring_still_beats_the_best_fuzzy_match() {
     l.update_filter("seo2");
     assert_eq!(shown(&l)[0], "ssh seo2");
 }
+
+#[test]
+fn test_spaced_query_keeps_token_matches_below_the_literal_phrase() {
+    // "run cc h" occurs literally only in the first row. The second row
+    // contains every token — run, cc, h — and must still appear, ranked
+    // below the literal phrase rather than being filtered out.
+    let mut l = UnifiedList::new(
+        vec![
+            Row {
+                kind: PickerMode::Commands,
+                entry: entry("uv run cc homepages --help", 5.0, HOUR),
+            },
+            Row {
+                kind: PickerMode::Commands,
+                entry: entry("uv run cc fenix-homepages --out ./data/homepages.tsv", 5.0, HOUR),
+            },
+        ],
+        None,
+        Transitions::new(),
+        ScoringConfig::default(),
+    );
+    l.filter = TypeFilter::Run;
+    l.update_filter("run cc h");
+    assert_eq!(
+        shown(&l),
+        vec![
+            "uv run cc homepages --help".to_string(),
+            "uv run cc fenix-homepages --out ./data/homepages.tsv".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn test_spaced_query_tokens_match_in_any_order() {
+    let mut l = UnifiedList::new(
+        vec![Row {
+            kind: PickerMode::Commands,
+            entry: entry("uv run cc homepages", 5.0, HOUR),
+        }],
+        None,
+        Transitions::new(),
+        ScoringConfig::default(),
+    );
+    l.filter = TypeFilter::Run;
+    l.update_filter("homepages run");
+    assert_eq!(shown(&l), vec!["uv run cc homepages".to_string()]);
+}
+
+#[test]
+fn test_spaced_query_still_excludes_rows_missing_a_token() {
+    let mut l = UnifiedList::new(
+        vec![Row { kind: PickerMode::Commands, entry: entry("git commit", 5.0, HOUR) }],
+        None,
+        Transitions::new(),
+        ScoringConfig::default(),
+    );
+    l.filter = TypeFilter::Run;
+    l.update_filter("git status");
+    assert!(shown(&l).is_empty(), "a row missing the `status` token must not match");
+}

@@ -62,85 +62,61 @@ impl FuzzyMatcher {
                 .collect();
         }
 
-        let has_space = query.contains(' ');
-
-        let mut results: Vec<FuzzyMatch> = if has_space {
-            // When query contains spaces, use Atom directly to preserve
-            // the literal query (Pattern splits on whitespace).
-            let atom = Atom::new(
-                query,
-                CaseMatching::Smart,
-                Normalization::Smart,
-                AtomKind::Substring,
-                false,
-            );
-            items
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, item)| {
-                    let mut buf = Vec::new();
-                    let score = atom.score(
-                        nucleo_matcher::Utf32Str::new(item, &mut buf),
-                        &mut self.matcher,
-                    )?;
-                    Some(FuzzyMatch {
+        // Two-tier matching: try substring first, fall back to fuzzy.
+        // Substring matches are tagged so they can receive a ranking bonus.
+        //
+        // The two tiers treat whitespace differently, and that difference is
+        // the point. `Atom` keeps the query literal, so tier 1 matches the
+        // whole phrase including its spaces; `Pattern` splits on whitespace,
+        // so tier 2 requires every token but lets them land anywhere, in any
+        // order. A query with no spaces is simply the case where `Pattern`
+        // yields a single atom, which is why one code path serves both.
+        let substring_atom = Atom::new(
+            query,
+            CaseMatching::Smart,
+            Normalization::Smart,
+            AtomKind::Substring,
+            false,
+        );
+        let fuzzy_pattern = Pattern::new(
+            query,
+            CaseMatching::Smart,
+            Normalization::Smart,
+            AtomKind::Fuzzy,
+        );
+        // Scratch buffer reused across rows: `indices` runs for every
+        // fuzzy-tier row on every keystroke.
+        let mut indices: Vec<u32> = Vec::new();
+        let mut buf: Vec<char> = Vec::new();
+        let mut results: Vec<FuzzyMatch> = items
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, item)| {
+                let haystack = nucleo_matcher::Utf32Str::new(item, &mut buf);
+                // Try substring first
+                if let Some(score) = substring_atom.score(haystack, &mut self.matcher) {
+                    return Some(FuzzyMatch {
                         idx,
                         score: score as u32,
                         is_substring: true,
                         contiguity: 0,
-                    })
+                    });
+                }
+                // Fall back to fuzzy. `indices` yields the same score as
+                // `score` while also reporting where the characters landed,
+                // so this stays a single pass over the haystack.
+                indices.clear();
+                let score = fuzzy_pattern.indices(haystack, &mut self.matcher, &mut indices)?;
+                indices.sort_unstable();
+                indices.dedup();
+                Some(FuzzyMatch {
+                    idx,
+                    score,
+                    is_substring: false,
+                    contiguity: contiguity_score(&indices),
                 })
-                .collect()
-        } else {
-            // Two-tier matching: try substring first, fall back to fuzzy.
-            // Substring matches are tagged so they can receive a ranking bonus.
-            let substring_atom = Atom::new(
-                query,
-                CaseMatching::Smart,
-                Normalization::Smart,
-                AtomKind::Substring,
-                false,
-            );
-            let fuzzy_pattern = Pattern::new(
-                query,
-                CaseMatching::Smart,
-                Normalization::Smart,
-                AtomKind::Fuzzy,
-            );
-            // Scratch buffer reused across rows: `indices` runs for every
-            // fuzzy-tier row on every keystroke.
-            let mut indices: Vec<u32> = Vec::new();
-            items
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, item)| {
-                    let mut buf = Vec::new();
-                    let haystack = nucleo_matcher::Utf32Str::new(item, &mut buf);
-                    // Try substring first
-                    if let Some(score) = substring_atom.score(haystack, &mut self.matcher) {
-                        return Some(FuzzyMatch {
-                            idx,
-                            score: score as u32,
-                            is_substring: true,
-                            contiguity: 0,
-                        });
-                    }
-                    // Fall back to fuzzy. `indices` yields the same score as
-                    // `score` while also reporting where the characters landed,
-                    // so this stays a single pass over the haystack.
-                    indices.clear();
-                    let score = fuzzy_pattern.indices(haystack, &mut self.matcher, &mut indices)?;
-                    indices.sort_unstable();
-                    indices.dedup();
-                    Some(FuzzyMatch {
-                        idx,
-                        score,
-                        is_substring: false,
-                        contiguity: contiguity_score(&indices),
-                    })
-                })
-                .collect()
-        };
+            })
+            .collect();
 
         results.sort_by(|a, b| b.score.cmp(&a.score));
         results
@@ -155,34 +131,24 @@ impl FuzzyMatcher {
         let haystack = nucleo_matcher::Utf32Str::new(item, &mut buf);
         let mut indices = Vec::new();
 
-        let has_space = query.contains(' ');
-        if has_space {
-            let atom = Atom::new(
+        // Mirrors the two tiers in `filter` exactly — highlighting a row by a
+        // different rule than the one that matched it would underline the
+        // wrong characters.
+        let substring_atom = Atom::new(
+            query,
+            CaseMatching::Smart,
+            Normalization::Smart,
+            AtomKind::Substring,
+            false,
+        );
+        if substring_atom.indices(haystack, &mut self.matcher, &mut indices).is_none() {
+            let pattern = Pattern::new(
                 query,
                 CaseMatching::Smart,
                 Normalization::Smart,
-                AtomKind::Substring,
-                false,
+                AtomKind::Fuzzy,
             );
-            atom.indices(haystack, &mut self.matcher, &mut indices);
-        } else {
-            // Try substring first, fall back to fuzzy
-            let substring_atom = Atom::new(
-                query,
-                CaseMatching::Smart,
-                Normalization::Smart,
-                AtomKind::Substring,
-                false,
-            );
-            if substring_atom.indices(haystack, &mut self.matcher, &mut indices).is_none() {
-                let pattern = Pattern::new(
-                    query,
-                    CaseMatching::Smart,
-                    Normalization::Smart,
-                    AtomKind::Fuzzy,
-                );
-                pattern.indices(haystack, &mut self.matcher, &mut indices);
-            }
+            pattern.indices(haystack, &mut self.matcher, &mut indices);
         }
 
         indices.sort_unstable();
@@ -256,6 +222,70 @@ mod tests {
         let mut matcher = FuzzyMatcher::new();
         let positions = matcher.match_positions("", "foobar");
         assert!(positions.is_empty());
+    }
+
+    #[test]
+    fn test_non_ascii_rows_do_not_contaminate_each_other() {
+        // `filter` reuses one `Vec<char>` scratch buffer across rows, and that
+        // buffer is only touched for non-ASCII haystacks. A long row followed
+        // by a shorter one is the case that would expose a stale tail if the
+        // buffer were not reset between rows.
+        let mut matcher = FuzzyMatcher::new();
+        let items = vec![
+            "cd ~/Документы/проекты/архив".to_string(),
+            "cd ~/café".to_string(),
+            "cd ~/plain-ascii".to_string(),
+        ];
+        let hits: Vec<usize> = matcher.filter("café", &items).iter().map(|m| m.idx).collect();
+        assert_eq!(hits, vec![1], "only the café row may match");
+
+        // Same matcher, second query: the long Cyrillic row must still match
+        // on its own terms after the shorter row reused the buffer.
+        let hits: Vec<usize> = matcher.filter("архив", &items).iter().map(|m| m.idx).collect();
+        assert_eq!(hits, vec![0], "only the Cyrillic row may match");
+    }
+
+    #[test]
+    fn test_spaced_query_falls_back_to_token_matching() {
+        let mut matcher = FuzzyMatcher::new();
+        // "run cc h" appears literally in row 1 only. Row 0 still contains
+        // every token — run, cc, h — so it must survive in the fuzzy tier
+        // rather than being filtered out entirely.
+        let items = vec![
+            "uv run cc fenix-homepages --out ./data/fenix/homepages.tsv".to_string(),
+            "uv run cc homepages --help".to_string(),
+        ];
+        let results = matcher.filter("run cc h", &items);
+        assert_eq!(results.len(), 2, "both rows should match");
+
+        let literal = results.iter().find(|m| m.idx == 1).expect("literal phrase row");
+        let tokens = results.iter().find(|m| m.idx == 0).expect("token row");
+        assert!(literal.is_substring, "exact phrase stays in the substring tier");
+        assert!(!tokens.is_substring, "token-only match lands in the fuzzy tier");
+    }
+
+    #[test]
+    fn test_spaced_token_match_is_order_independent() {
+        let mut matcher = FuzzyMatcher::new();
+        let items = vec!["uv run cc homepages".to_string()];
+        assert_eq!(matcher.filter("homepages run", &items).len(), 1);
+    }
+
+    #[test]
+    fn test_spaced_query_still_requires_every_token() {
+        let mut matcher = FuzzyMatcher::new();
+        let items = vec!["git commit".to_string()];
+        // "status" appears nowhere, so no tier may match.
+        assert!(matcher.filter("git status", &items).is_empty());
+    }
+
+    #[test]
+    fn test_match_positions_for_a_spaced_token_match() {
+        let mut matcher = FuzzyMatcher::new();
+        // No literal "run cc h" here, so highlighting must come from the
+        // token tier rather than returning nothing.
+        let positions = matcher.match_positions("run cc h", "uv run cc fenix-homepages");
+        assert!(!positions.is_empty(), "token matches must still highlight");
     }
 
     #[test]

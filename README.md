@@ -10,7 +10,8 @@ Tracks usage via shell hooks with a frecency-scored SQLite database.
   leaving the picker
 - **Locality-aware ranking** — the current directory boosts commands run here and directories/hosts you've jumped to
   from here, on top of match quality, recency, and frecency (see [doc/search.md](doc/search.md))
-- **Two-tier search** powered by nucleo — substring matches first, fuzzy fallback, with matched characters highlighted
+- **Two-tier search** powered by nucleo — literal matches first, fuzzy fallback, with matched characters highlighted; a
+  space-separated query ranks exact-phrase rows above rows that merely contain every token
 - **Frecency scoring** with exponential decay — recent and frequent entries rank higher
 - **Shell integration** for zsh, bash, fish, and PowerShell with automatic directory, command, and transition tracking
 - **Ctrl+R replacement** — replaces default reverse history search with the ukrop TUI
