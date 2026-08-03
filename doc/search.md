@@ -218,12 +218,13 @@ be a no-op — those views are pure base-score order.
 
 With an empty search bar the full formula still applies, minus the
 query-dependent terms (`prefix_bonus`, `substring_bonus`, `fuzzy_penalty`,
-`fuzzy_score`, `contiguity_weight`), and the diversity re-rank runs normally. This makes the
-opening screen a genuine "what do I most likely want, here, now" list, ranked
-by recency, locality, frecency, favorites, and brevity — rather than raw
-database order. Typing the first character adds the match-quality terms on
-top of the same ranking rather than switching to a different scoring regime,
-so there's no discontinuity between the empty and non-empty views.
+`fuzzy_score`, and the contiguity bonus), and the diversity re-rank runs
+normally. This makes the opening screen a genuine "what do I most likely
+want, here, now" list, ranked by recency, locality, frecency, favorites, and
+brevity — rather than raw database order. Typing the first character adds the
+match-quality terms on top of the same ranking rather than switching to a
+different scoring regime, so there's no discontinuity between the empty and
+non-empty views.
 
 ## Configuration
 
