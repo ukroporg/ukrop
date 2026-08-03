@@ -17,14 +17,15 @@ pub fn run() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        None => cmd_cd(None),
-        Some(Command::Cd { query }) => cmd_cd(query_opt(&query)),
+        // Bare `ukrop` opens the unified list with no type preselected.
+        None => cmd_cd(None, None),
+        Some(Command::Cd { query }) => cmd_cd(query_opt(&query), Some(tui::PickerMode::Directories)),
         Some(Command::Run { query }) => cmd_run(query_opt(&query)),
         Some(Command::Ssh { query }) => cmd_ssh(query_opt(&query)),
         Some(Command::Search { query }) => cmd_search(query_opt(&query)),
         Some(Command::Init { shell }) => cmd_init(shell),
-        Some(Command::Hook { path }) => cmd_hook(&path),
-        Some(Command::HookSsh { host }) => cmd_hook_ssh(&host),
+        Some(Command::Hook { shell_id, path }) => cmd_hook(&path, shell_id.as_deref()),
+        Some(Command::HookSsh { host, cwd }) => cmd_hook_ssh(&host, cwd.as_deref()),
         Some(Command::HookCmd { cmd, exit_code, cwd, duration_ms }) => cmd_hook_cmd(&cmd, exit_code, cwd, duration_ms),
         Some(Command::Add { path }) => cmd_add(&path),
         Some(Command::Forget { path }) => cmd_forget(&path),
@@ -42,7 +43,7 @@ fn query_opt(parts: &[String]) -> Option<String> {
     if q.is_empty() { None } else { Some(q) }
 }
 
-fn cmd_cd(query: Option<String>) -> Result<()> {
+fn cmd_cd(query: Option<String>, initial_mode: Option<tui::PickerMode>) -> Result<()> {
     let db_path = util::db_path()?;
     let mut store = db::store::Store::open(&db_path)?;
     if store.is_empty()? && !setup_marker_exists() {
@@ -50,9 +51,11 @@ fn cmd_cd(query: Option<String>) -> Result<()> {
         eprintln!();
     }
 
-    // Auto-cleanup stale directories
+    // Auto-cleanup stale directories, transitions, and per-shell PWD keys
     let cfg = config::Config::load();
     let _ = store.cleanup_stale_directories(cfg.cleanup.stale_days);
+    let _ = store.prune_transitions(cfg.cleanup.stale_days);
+    let _ = store.prune_shell_pwd_keys(cfg.cleanup.stale_days);
 
     // Non-interactive mode: if query is provided and stdout is not a TTY, print best match
     if let Some(ref q) = query {
@@ -67,36 +70,49 @@ fn cmd_cd(query: Option<String>) -> Result<()> {
     }
 
     drop(store);
-    run_tui(tui::PickerMode::Directories, query)
+    run_tui(initial_mode, query)
 }
 
 fn cmd_run(query: Option<String>) -> Result<()> {
-    run_tui(tui::PickerMode::Commands, query)
+    run_tui(Some(tui::PickerMode::Commands), query)
 }
 
 fn cmd_ssh(query: Option<String>) -> Result<()> {
-    run_tui(tui::PickerMode::SshHosts, query)
+    run_tui(Some(tui::PickerMode::SshHosts), query)
 }
 
 fn cmd_search(query: Option<String>) -> Result<()> {
-    run_tui(tui::PickerMode::Commands, query)
+    // `search` is documented as searching across every type, which the
+    // unified list expresses as no preselected type filter.
+    run_tui(None, query)
 }
 
-fn run_tui(initial_mode: tui::PickerMode, initial_query: Option<String>) -> Result<()> {
+fn run_tui(initial_mode: Option<tui::PickerMode>, initial_query: Option<String>) -> Result<()> {
     run_tui_inner(initial_mode, initial_query, false)
 }
 
-fn run_tui_inner(initial_mode: tui::PickerMode, initial_query: Option<String>, open_config: bool) -> Result<()> {
+fn run_tui_inner(initial_mode: Option<tui::PickerMode>, initial_query: Option<String>, open_config: bool) -> Result<()> {
     let db_path = util::db_path()?;
     let mut store = db::store::Store::open(&db_path)?;
 
+    let current_dir = std::env::current_dir()
+        .ok()
+        .and_then(|p| p.to_str().map(String::from));
+
     match tui::run_picker(initial_mode, &mut store, initial_query, open_config)? {
-        Some((mode, selected, edit)) => {
-            let prefix = if edit { "edit:" } else { "" };
-            match mode {
-                tui::PickerMode::Directories => println!("{}cd:{}", prefix, selected),
-                tui::PickerMode::Commands => println!("{}run:{}", prefix, selected),
-                tui::PickerMode::SshHosts => println!("{}ssh:{}", prefix, selected),
+        Some(result) => {
+            // Best-effort: a recording failure must never block the selection.
+            let _ = record_pick_transition(
+                &mut store,
+                current_dir.as_deref(),
+                result.kind.db_kind(),
+                &result.key,
+            );
+            let prefix = if result.edit { "edit:" } else { "" };
+            match result.kind {
+                tui::PickerMode::Directories => println!("{}cd:{}", prefix, result.output),
+                tui::PickerMode::Commands => println!("{}run:{}", prefix, result.output),
+                tui::PickerMode::SshHosts => println!("{}ssh:{}", prefix, result.output),
             }
             Ok(())
         }
@@ -104,8 +120,50 @@ fn run_tui_inner(initial_mode: tui::PickerMode, initial_query: Option<String>, o
     }
 }
 
+/// Record a directory-to-target jump. `kind` is "cd", "run" or "ssh"; only "cd"
+/// and "ssh" produce a transition. A missing origin, or an origin equal to the
+/// target, is a no-op.
+pub fn record_pick_transition(
+    store: &mut db::store::Store,
+    from_cwd: Option<&str>,
+    kind: &str,
+    target: &str,
+) -> Result<()> {
+    if kind == "run" || target.is_empty() {
+        return Ok(());
+    }
+    let Some(from) = from_cwd else {
+        return Ok(());
+    };
+    if from == target {
+        return Ok(());
+    }
+    store.record_transition(from, kind, target)
+}
+
+/// Record the shell's current directory at prompt time, and derive a `cd`
+/// transition when it differs from the last directory seen for this shell.
+/// Without a `shell_id`, concurrent shells would fabricate transitions between
+/// unrelated directories, so no transition is recorded.
+pub fn record_prompt_pwd(
+    store: &mut db::store::Store,
+    path: &str,
+    shell_id: Option<&str>,
+) -> Result<()> {
+    let Some(sid) = shell_id else {
+        return Ok(());
+    };
+    if let Some(prev) = store.get_shell_pwd(sid)? {
+        if prev != path {
+            store.record_transition(&prev, "cd", path)?;
+        }
+    }
+    store.set_shell_pwd(sid, path)?;
+    Ok(())
+}
+
 fn cmd_config() -> Result<()> {
-    run_tui_inner(tui::PickerMode::Directories, None, true)
+    run_tui_inner(None, None, true)
 }
 
 fn cmd_init(shell: cli::ShellType) -> Result<()> {
@@ -118,17 +176,21 @@ fn cmd_init(shell: cli::ShellType) -> Result<()> {
     Ok(())
 }
 
-fn cmd_hook(path: &str) -> Result<()> {
+fn cmd_hook(path: &str, shell_id: Option<&str>) -> Result<()> {
     let db_path = util::db_path()?;
     let mut store = db::store::Store::open(&db_path)?;
     store.record_visit(path)?;
+    let _ = record_prompt_pwd(&mut store, path, shell_id);
     Ok(())
 }
 
-fn cmd_hook_ssh(host: &str) -> Result<()> {
+fn cmd_hook_ssh(host: &str, cwd: Option<&str>) -> Result<()> {
     let db_path = util::db_path()?;
     let mut store = db::store::Store::open(&db_path)?;
     store.record_ssh_host(host, None, None, None, "hook")?;
+    if let Some(from) = cwd {
+        let _ = record_pick_transition(&mut store, Some(from), "ssh", host);
+    }
     Ok(())
 }
 
@@ -146,7 +208,15 @@ fn cmd_hook_cmd(cmd: &str, exit_code: Option<i64>, cwd: Option<String>, duration
     let trimmed = cmd.trim();
     if trimmed.starts_with("ssh ") && !trimmed.starts_with("ssh-") {
         let args = &trimmed[4..];
-        let _ = store.record_ssh_from_command(args.trim());
+        // Key the transition on the alias `record_ssh_from_command` actually
+        // resolved to — picker rows key on `ssh_hosts.host`, and that alias
+        // can differ from the raw connect string (e.g. `deploy@1.2.3.4`
+        // resolving to the existing host `prod`).
+        if let Ok(Some(host)) = store.record_ssh_from_command(args.trim()) {
+            if let Some(ref d) = cwd {
+                let _ = record_pick_transition(&mut store, Some(d), "ssh", &host);
+            }
+        }
     }
 
     Ok(())
@@ -196,6 +266,16 @@ fn cmd_import(shell: Option<cli::ShellType>, file: Option<String>) -> Result<()>
     let cmd_count = commands.len();
     store.import_commands_with_cwd_batch(&commands, "history")?;
 
+    let raw_pairs = match shell {
+        cli::ShellType::Bash => history::bash::parse_history_with_cwd_raw()?,
+        cli::ShellType::Zsh => history::zsh::parse_history_with_cwd_raw()?,
+        cli::ShellType::Fish => history::fish::parse_history_with_cwd_raw()?,
+        cli::ShellType::Powershell => history::powershell::parse_history_with_cwd_raw()?,
+    };
+    let transitions = history::extract_transitions(&raw_pairs);
+    let transition_count = transitions.len();
+    store.record_transitions_batch(&transitions)?;
+
     let directories = match shell {
         cli::ShellType::Bash => history::bash::extract_directories_from_history()?,
         cli::ShellType::Zsh => history::zsh::extract_directories_from_history()?,
@@ -220,8 +300,8 @@ fn cmd_import(shell: Option<cli::ShellType>, file: Option<String>) -> Result<()>
     store.import_ssh_hosts_batch(&ssh_history_hosts, "history")?;
 
     eprintln!(
-        "Imported {} commands, {} directories, {} SSH hosts (config) + {} SSH hosts (history) from {:?}",
-        cmd_count, dir_count, ssh_config_count, ssh_hist_count, shell
+        "Imported {} commands, {} directories, {} SSH hosts (config) + {} SSH hosts (history), {} transitions from {:?}",
+        cmd_count, dir_count, ssh_config_count, ssh_hist_count, transition_count, shell
     );
     Ok(())
 }

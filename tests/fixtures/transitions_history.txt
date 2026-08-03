@@ -1,0 +1,9 @@
+cd /home/me/projects
+ls -la
+cd /home/me/projects/api
+cargo build
+ssh prod-web1
+cd /home/me/projects
+ssh prod-db
+cd relative-dir
+cd /home/me/projects/api

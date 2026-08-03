@@ -31,6 +31,72 @@ fn test_init_zsh() {
 }
 
 #[test]
+fn test_init_scripts_pass_new_hook_flags() {
+    for shell in ["bash", "zsh", "fish", "powershell"] {
+        let out = std::process::Command::new(env!("CARGO_BIN_EXE_ukrop"))
+            .args(["init", shell])
+            .output()
+            .unwrap();
+        let script = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            script.contains("--shell-id"),
+            "{} init script must pass --shell-id",
+            shell
+        );
+        // The picker-selection `ssh:*` branch must NOT pass --cwd to
+        // hook-ssh: Task 7's `record_pick_transition` call in
+        // `run_tui_inner` already records that exact transition
+        // synchronously for every pick. Having the shell wrapper also pass
+        // --cwd here double-records the same transition (or, worse, records
+        // it under a different key than the picker used, since the shell
+        // only has the raw connect string while the picker already resolved
+        // the alias) — see Task 8 review findings 1 and 2. Do not add
+        // --cwd back to this call.
+        let ssh_hook_line = script
+            .lines()
+            .find(|l| l.contains("hook-ssh"))
+            .unwrap_or_else(|| panic!("{} init script must call hook-ssh", shell));
+        assert!(
+            !ssh_hook_line.contains("--cwd"),
+            "{} init script's hook-ssh call (picker-selection branch) must not pass --cwd: {}",
+            shell,
+            ssh_hook_line
+        );
+    }
+}
+
+/// `u search <query>` is documented as an entry point alongside `u cd`/`u
+/// run`/`u ssh`, so every wrapper must intercept it. If `search` is missing
+/// from the wrapper's subcommand condition the wrapper falls through to the
+/// bare binary and the raw `cd:/path` selection line is printed to the
+/// terminal instead of being consumed by the shell.
+#[test]
+fn test_init_scripts_intercept_search_subcommand() {
+    for shell in ["bash", "zsh", "fish", "powershell"] {
+        let out = std::process::Command::new(env!("CARGO_BIN_EXE_ukrop"))
+            .args(["init", shell])
+            .output()
+            .unwrap();
+        let script = String::from_utf8_lossy(&out.stdout);
+
+        // Find the wrapper's subcommand dispatch condition: the single line
+        // that tests $1 against "ssh", and assert it also tests "search".
+        let cond = script
+            .lines()
+            .find(|l| l.contains("\"ssh\"") || l.contains("'ssh'"))
+            .unwrap_or_else(|| {
+                panic!("{} init script must have a wrapper subcommand condition", shell)
+            });
+        assert!(
+            cond.contains("\"search\"") || cond.contains("'search'"),
+            "{} wrapper must intercept `search` like cd/run/ssh: {}",
+            shell,
+            cond
+        );
+    }
+}
+
+#[test]
 fn test_hook_and_list() {
     let dir = tempfile::tempdir().unwrap();
     let db = dir.path().join("test.db");

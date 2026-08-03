@@ -61,23 +61,23 @@ pub fn handle_key(key: KeyEvent, state: &mut AppState) -> Action {
         KeyCode::Esc => Action::Quit,
         KeyCode::Enter if key.modifiers.contains(KeyModifiers::SHIFT) => Action::SelectEdit,
         KeyCode::Enter => Action::Select,
-        KeyCode::Tab if key.modifiers.contains(KeyModifiers::SHIFT) => Action::SwitchPanelBack,
-        KeyCode::Tab => Action::SwitchPanel,
-        KeyCode::BackTab => Action::SwitchPanelBack,
+        KeyCode::Tab if key.modifiers.contains(KeyModifiers::SHIFT) => Action::CycleFilterBack,
+        KeyCode::Tab => Action::CycleFilter,
+        KeyCode::BackTab => Action::CycleFilterBack,
         KeyCode::Up => {
-            state.active_panel_mut().move_up();
+            state.list.move_up();
             Action::Continue
         }
         KeyCode::Down => {
-            state.active_panel_mut().move_down();
+            state.list.move_down();
             Action::Continue
         }
         KeyCode::PageUp => {
-            state.active_panel_mut().page_up();
+            state.list.page_up();
             Action::Continue
         }
         KeyCode::PageDown => {
-            state.active_panel_mut().page_down();
+            state.list.page_down();
             Action::Continue
         }
         KeyCode::Backspace => {
@@ -98,11 +98,11 @@ pub fn handle_key(key: KeyEvent, state: &mut AppState) -> Action {
             Action::Continue
         }
         KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            state.active_panel_mut().move_up();
+            state.list.move_up();
             Action::Continue
         }
         KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            state.active_panel_mut().move_down();
+            state.list.move_down();
             Action::Continue
         }
         KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -219,4 +219,47 @@ fn handle_config_key_wrapper(key: KeyEvent, state: &mut AppState) -> Action {
     }
 
     action
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+    // `app` is a private module, but `input` is its sibling inside `tui`,
+    // so reach it via `super::` rather than an absolute `crate::tui::app` path.
+    fn state() -> super::super::app::AppState {
+        super::super::app::AppState::for_test()
+    }
+
+    #[test]
+    fn test_tab_cycles_filter_forward() {
+        let mut s = state();
+        let a = handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE), &mut s);
+        assert!(matches!(a, Action::CycleFilter));
+    }
+
+    #[test]
+    fn test_shift_tab_cycles_filter_back() {
+        let mut s = state();
+        let a = handle_key(KeyEvent::new(KeyCode::BackTab, KeyModifiers::NONE), &mut s);
+        assert!(matches!(a, Action::CycleFilterBack));
+    }
+
+    #[test]
+    fn test_enter_selects() {
+        let mut s = state();
+        let a = handle_key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE), &mut s);
+        assert!(matches!(a, Action::Select));
+    }
+
+    #[test]
+    fn test_ctrl_w_toggles_cwd_filter() {
+        let mut s = state();
+        let a = handle_key(
+            KeyEvent::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+            &mut s,
+        );
+        assert!(matches!(a, Action::ToggleCwdFilter));
+    }
 }

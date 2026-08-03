@@ -18,6 +18,10 @@ pub struct Theme {
     pub highlight_modifier: Modifier,
     pub highlight_fg: Color,
     pub favorite: Style,
+    // Type sigils in the unified list
+    pub sigil_cd: Style,
+    pub sigil_run: Style,
+    pub sigil_ssh: Style,
     // Headers & status
     pub section_header: Style,
     pub status_hint: Style,
@@ -26,9 +30,6 @@ pub struct Theme {
     pub dialog_border: Style,
     pub dialog_key: Style,
     pub dialog_desc: Style,
-    // Layout
-    pub left_panel_pct: u16,
-    pub cd_panel_pct: u16,
 }
 
 struct Palette {
@@ -160,8 +161,17 @@ impl Theme {
             favorite = favorite.add_modifier(Modifier::ITALIC);
         }
 
-        let left_pct = cfg.layout.left_panel_pct.clamp(5, 50);
-        let cd_pct = cfg.layout.cd_panel_pct.clamp(10, 90);
+        // Monochrome deliberately drops sigil colour: the `/`, `$`, `@`
+        // characters alone carry the type distinction.
+        let (sigil_cd, sigil_run, sigil_ssh) = if cfg.theme.preset == ThemePreset::Monochrome {
+            (Style::default(), Style::default(), Style::default())
+        } else {
+            (
+                Style::default().fg(p.border),
+                Style::default().fg(Color::Magenta),
+                Style::default().fg(p.highlight),
+            )
+        };
 
         Theme {
             border_active: Style::default().fg(p.border),
@@ -176,14 +186,23 @@ impl Theme {
             highlight_modifier,
             highlight_fg: p.highlight,
             favorite,
+            sigil_cd,
+            sigil_run,
+            sigil_ssh,
             section_header: Style::default().fg(p.header).add_modifier(Modifier::BOLD),
             status_hint: Style::default().fg(Color::DarkGray),
             flash: Style::default().fg(p.border).add_modifier(Modifier::BOLD),
             dialog_border: Style::default().fg(p.header),
             dialog_key: Style::default().fg(p.border).add_modifier(Modifier::BOLD),
             dialog_desc: Style::default().fg(Color::White),
-            left_panel_pct: left_pct,
-            cd_panel_pct: cd_pct,
+        }
+    }
+
+    pub fn sigil_style(&self, kind: crate::tui::PickerMode) -> Style {
+        match kind {
+            crate::tui::PickerMode::Directories => self.sigil_cd,
+            crate::tui::PickerMode::Commands => self.sigil_run,
+            crate::tui::PickerMode::SshHosts => self.sigil_ssh,
         }
     }
 

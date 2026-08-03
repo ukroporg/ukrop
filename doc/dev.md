@@ -35,35 +35,42 @@ src/
   bin/u.rs         — `u` shortcut binary (same entry point)
   cli.rs           — clap CLI definition
   lib.rs           — library: module re-exports and run() with subcommand dispatch
-  config.rs        — TOML configuration file, theme/layout structs, save support
+  config.rs        — TOML configuration file, scoring/theme/layout structs, save support
   demo.rs          — demo data generation for screencasts
   util.rs          — XDG paths, path helpers
   frecency.rs      — frecency scoring (exponential decay)
   db/
-    migrate.rs     — schema migrations (v1, v2, v3) with column-existence checks
+    migrate.rs     — schema migrations (v1-v5) with column-existence checks
     model.rs       — DirEntry, CmdEntry, SshHostEntry structs
     store.rs       — SQLite operations with transactions, batch imports, stale cleanup
+    transitions.rs — transitions table CRUD, per-shell PWD tracking, pruning
   history/
     bash.rs        — bash history parser
     zsh.rs         — zsh history parser
     fish.rs        — fish history parser (YAML-like format)
+    powershell.rs  — PowerShell history parser
   shell/
     bash.rs        — bash init script template
     zsh.rs         — zsh init script template
     fish.rs        — fish init script template
+    powershell.rs  — PowerShell init script template
   ssh/
     config.rs      — ~/.ssh/config parser
   tui/
-    app.rs         — TUI state machine, panel state, event loop
-    ui.rs          — ratatui rendering (3-panel layout, preview, match highlighting, config overlay)
-    input.rs       — key bindings (cursor movement, word delete, Home/End, config dialog keys)
+    app.rs         — TUI state machine (UnifiedList), event loop
+    ranking.rs      — scoring formula and the type-diversity three-way merge (see doc/search.md)
+    ui.rs          — ratatui rendering: single ranked list with type sigils (/, $, @), preview, match highlighting, config overlay
+    input.rs       — key bindings (cursor movement, type-filter cycling, cwd-filter toggle, config dialog keys)
     fuzzy.rs       — nucleo two-tier matcher (substring + fuzzy) with match positions
     tty_reader.rs  — direct /dev/tty input reader (Home/End/Delete key support)
-    theme.rs       — color theme resolution from ThemePreset to ratatui styles
+    theme.rs       — color theme resolution from ThemePreset to ratatui styles, incl. per-type sigil colors
     config_dialog.rs — in-TUI config editor modal (field types, navigation, validation)
+    edit_dialog.rs — in-TUI command editor modal (F2)
 tests/             — integration tests
 packaging/         — Homebrew formula and deb packaging
-doc/website/       — static site for ukrop.org (plain HTML/CSS/JS, no build step)
+doc/website/       — static site for ukrop.org (plain HTML/CSS/JS, no build step);
+                     gitignored (`/doc/website` in .gitignore) — not tracked in this
+                     repository, maintained and deployed outside version control
 ```
 
 ## Testing as a real user (Homebrew)

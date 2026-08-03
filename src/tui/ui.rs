@@ -6,9 +6,10 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 
-use super::app::{AppState, PanelState, PickerMode};
+use super::app::{AppState, PickerMode, UnifiedList};
 use super::config_dialog::{ConfigDialog, FieldKind};
 use super::edit_dialog::EditDialog;
+use super::fuzzy::FuzzyMatcher;
 use super::theme::Theme;
 
 fn format_relative_time(ts: i64) -> String {
@@ -131,140 +132,122 @@ fn pad_line(line: Line<'static>, total_width: usize) -> Line<'static> {
     }
 }
 
-fn draw_panel(f: &mut Frame, area: ratatui::layout::Rect, panel: &mut PanelState, is_active: bool, query: &str, theme: &Theme, cwd_filter: bool) {
+fn draw_list(
+    f: &mut Frame,
+    area: ratatui::layout::Rect,
+    list: &mut UnifiedList,
+    query: &str,
+    theme: &Theme,
+) {
     let col_width = area.width as usize;
-    // 2 borders + 2 selector + 2 fav marker = 6 chars overhead
-    let text_max_width = col_width.saturating_sub(6);
-    let inner_width = col_width.saturating_sub(2); // inside borders
+    // 2 borders + 2 selector + 2 sigil + 2 fav marker = 8 chars overhead
+    let text_max_width = col_width.saturating_sub(8);
+    let inner_width = col_width.saturating_sub(2);
+    let prefix_width = 6; // selector (2) + sigil (2) + fav marker (2)
 
-    let border_style = if is_active {
-        theme.border_active
-    } else {
-        theme.border_inactive
-    };
+    let count = list.ranked.len();
+    let total = list.rows.len();
+    let cwd_tag = if list.cwd_filter { " [cwd]" } else { "" };
+    let title = format!(
+        " ukrop ({}/{})  filter: {}{}  ",
+        count,
+        total,
+        list.filter.label(),
+        cwd_tag
+    );
 
-    let title_style = if is_active {
-        theme.border_active.add_modifier(Modifier::BOLD)
-    } else {
-        theme.border_inactive
-    };
+    // Snapshot what the loop needs so `list` is not borrowed twice.
+    let selected = list.selected;
+    let ranked: Vec<(usize, PickerMode)> =
+        list.ranked.iter().map(|s| (s.row_idx, s.kind)).collect();
 
-    let count = panel.filtered_indices.len();
-    let total = panel.display_texts.len();
-    let cwd_tag = if cwd_filter && panel.mode == PickerMode::Commands { " [cwd]" } else { "" };
-    let title = format!(" {} ({}/{}){}  ", panel.mode.label(), count, total, cwd_tag);
+    // One matcher for the whole pass: `FuzzyMatcher::new` allocates ~100KB, so
+    // building one per row made redraw cost scale with database size.
+    let mut matcher = FuzzyMatcher::new();
+    let mut list_items: Vec<ListItem> = Vec::with_capacity(ranked.len());
+    for (display_idx, (row_idx, kind)) in ranked.iter().enumerate() {
+        let item = &list.rows[*row_idx].entry;
+        let is_selected = display_idx == selected;
+        let fav_marker = if item.is_favorite { "* " } else { "  " };
+        let not_exists = item.exists == Some(false);
+        let style = theme.item_style(is_selected, not_exists, item.last_time);
+        let hl_style = theme.highlight_style(style);
+        let fav_style = if item.is_favorite { theme.favorite } else { style };
+        let selector = if is_selected { "> " } else { "  " };
+        let sigil = format!("{} ", kind.sigil());
+        let sigil_style = theme.sigil_style(*kind);
+        let is_cmd = *kind == PickerMode::Commands;
 
-    let is_cmd_panel = panel.mode == PickerMode::Commands;
-    // overhead for continuation lines: 2 borders + 2 selector + 2 fav = 6, but continuation has blank prefix
-    let prefix_width = 4; // "> " or "  " (2) + fav marker (2) = 4
-
-    let list_items: Vec<ListItem> = panel
-        .filtered_indices
-        .iter()
-        .enumerate()
-        .map(|(display_idx, (item_idx, _match_score, _is_substr))| {
-            let item = &panel.items[*item_idx];
-            let is_selected = is_active && display_idx == panel.selected;
-            let fav_marker = if item.is_favorite { "* " } else { "  " };
-
-            let not_exists = item.exists == Some(false);
-
-            let style = theme.item_style(is_selected, not_exists, item.last_time);
-            let hl_style = theme.highlight_style(style);
-
-            let fav_style = if item.is_favorite {
-                theme.favorite
-            } else {
-                style
-            };
-
-            let selector = if is_selected { "> " } else { "  " };
-
-            if is_cmd_panel && is_selected && item.display.chars().count() > text_max_width {
-                // Selected command: show multiline, max 5 rows
-                let lines = wrap_command(&item.display, text_max_width, 5);
-                let full_text: String = lines.concat();
-                let positions = panel.fuzzy.match_positions(query, &full_text);
-                let mut spans_lines: Vec<Line> = Vec::new();
-                // Remap positions to wrapped lines
-                let mut char_offset = 0usize;
-                for (i, line_text) in lines.iter().enumerate() {
-                    let line_len = line_text.chars().count();
-                    let line_positions: Vec<u32> = positions
-                        .iter()
-                        .filter(|&&p| (p as usize) >= char_offset && (p as usize) < char_offset + line_len)
-                        .map(|&p| p - char_offset as u32)
-                        .collect();
-                    let text_spans = highlighted_spans(line_text, &line_positions, style, hl_style);
-                    if i == 0 {
-                        let mut line_spans = vec![
-                            Span::styled(selector, theme.selected),
-                            Span::styled(fav_marker, fav_style),
-                        ];
-                        line_spans.extend(text_spans);
-                        spans_lines.push(pad_line(Line::from(line_spans), inner_width));
-                    } else {
-                        let pad = " ".repeat(prefix_width);
-                        let mut line_spans = vec![Span::raw(pad)];
-                        line_spans.extend(text_spans);
-                        spans_lines.push(pad_line(Line::from(line_spans), inner_width));
-                    }
-                    char_offset += line_len;
-                }
-                ListItem::new(spans_lines)
-            } else {
-                let text = if is_cmd_panel {
-                    truncate_command(&item.display, text_max_width)
+        if is_cmd && is_selected && item.display.chars().count() > text_max_width {
+            // Selected long command: wrap over up to 5 rows.
+            let lines = wrap_command(&item.display, text_max_width, 5);
+            let full_text: String = lines.concat();
+            let positions = list.fuzzy_positions(&mut matcher, query, &full_text);
+            let mut spans_lines: Vec<Line> = Vec::new();
+            let mut char_offset = 0usize;
+            for (i, line_text) in lines.iter().enumerate() {
+                let line_len = line_text.chars().count();
+                let line_positions: Vec<u32> = positions
+                    .iter()
+                    .filter(|&&p| {
+                        (p as usize) >= char_offset && (p as usize) < char_offset + line_len
+                    })
+                    .map(|&p| p - char_offset as u32)
+                    .collect();
+                let text_spans = highlighted_spans(line_text, &line_positions, style, hl_style);
+                let mut line_spans = if i == 0 {
+                    vec![
+                        Span::styled(selector, theme.selected),
+                        Span::styled(sigil.clone(), sigil_style),
+                        Span::styled(fav_marker, fav_style),
+                    ]
                 } else {
-                    truncate_path(&item.display, text_max_width)
+                    vec![Span::raw(" ".repeat(prefix_width))]
                 };
-
-                // Compute match positions on the displayed (truncated) text
-                let positions = panel.fuzzy.match_positions(query, &text);
-                let text_spans = highlighted_spans(&text, &positions, style, hl_style);
-                let mut line_spans = vec![
-                    Span::styled(selector, theme.selected),
-                    Span::styled(fav_marker, fav_style),
-                ];
                 line_spans.extend(text_spans);
-                ListItem::new(pad_line(Line::from(line_spans), inner_width))
+                spans_lines.push(pad_line(Line::from(line_spans), inner_width));
+                char_offset += line_len;
             }
-        })
-        .collect();
+            list_items.push(ListItem::new(spans_lines));
+        } else {
+            let text = if is_cmd {
+                truncate_command(&item.display, text_max_width)
+            } else {
+                truncate_path(&item.display, text_max_width)
+            };
+            let positions = list.fuzzy_positions(&mut matcher, query, &text);
+            let text_spans = highlighted_spans(&text, &positions, style, hl_style);
+            let mut line_spans = vec![
+                Span::styled(selector, theme.selected),
+                Span::styled(sigil, sigil_style),
+                Span::styled(fav_marker, fav_style),
+            ];
+            line_spans.extend(text_spans);
+            list_items.push(ListItem::new(pad_line(Line::from(line_spans), inner_width)));
+        }
+    }
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(theme.border_active)
+        .title(Span::styled(
+            title,
+            theme.border_active.add_modifier(Modifier::BOLD),
+        ));
 
     if list_items.is_empty() {
-        let msg = if panel.display_texts.is_empty() {
-            "  (empty)"
-        } else {
-            "  No matches"
-        };
-        let no_match = Paragraph::new(Line::from(vec![
-            Span::styled(msg, theme.age_old),
-        ]))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(border_style)
-                .title(Span::styled(title, title_style)),
-        );
+        let msg = if list.rows.is_empty() { "  (empty)" } else { "  No matches" };
+        let no_match =
+            Paragraph::new(Line::from(vec![Span::styled(msg, theme.age_old)])).block(block);
         f.render_widget(no_match, area);
     } else {
-        let list = List::new(list_items).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(border_style)
-                .title(Span::styled(title, title_style)),
-        );
-
-        let visible_height = area.height.saturating_sub(2) as usize; // minus top+bottom borders
-        panel.ensure_visible(visible_height);
-
+        let widget = List::new(list_items).block(block);
+        let visible_height = area.height.saturating_sub(2) as usize;
+        list.ensure_visible(visible_height);
         let mut list_state = ListState::default();
-        if is_active {
-            list_state.select(Some(panel.selected));
-        }
-        *list_state.offset_mut() = panel.scroll_offset;
-        f.render_stateful_widget(list, area, &mut list_state);
+        list_state.select(Some(list.selected));
+        *list_state.offset_mut() = list.scroll_offset;
+        f.render_stateful_widget(widget, area, &mut list_state);
     }
 }
 
@@ -273,7 +256,7 @@ pub fn draw(f: &mut Frame, state: &mut AppState) {
 
     let theme = &state.theme;
     let compact = f.area().height < 40;
-    let has_preview = !compact && state.active_panel().selected_index().is_some();
+    let has_preview = !compact && state.list.selected_row().is_some();
     let preview_height = if has_preview { 3 } else { 0 };
     let status_height: u16 = if compact { 0 } else { 1 };
 
@@ -281,7 +264,7 @@ pub fn draw(f: &mut Frame, state: &mut AppState) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3),                  // search bar
-            Constraint::Min(1),                    // panels
+            Constraint::Min(1),                    // unified list
             Constraint::Length(preview_height),     // preview
             Constraint::Length(status_height),      // status bar
         ])
@@ -307,31 +290,7 @@ pub fn draw(f: &mut Frame, state: &mut AppState) {
     .block(Block::default().borders(Borders::ALL).title(search_title));
     f.render_widget(search, chunks[0]);
 
-    // Two columns: left (configurable%) and right
-    let left_pct = theme.left_panel_pct;
-    let right_pct = 100u16.saturating_sub(left_pct);
-    let cols = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(left_pct),
-            Constraint::Percentage(right_pct),
-        ])
-        .split(chunks[1]);
-
-    // Left column: cd (configurable%) on top, ssh on bottom
-    let cd_pct = theme.cd_panel_pct;
-    let ssh_pct = 100u16.saturating_sub(cd_pct);
-    let left = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage(cd_pct),
-            Constraint::Percentage(ssh_pct),
-        ])
-        .split(cols[0]);
-
-    let active = state.active;
-    let query = state.query.clone();
-    // Need to borrow theme fields before mutable borrow of panels
+    // Need to borrow theme fields before the mutable borrow of the list
     let border_active = state.theme.border_active;
     let border_inactive = state.theme.border_inactive;
     let prompt = state.theme.prompt;
@@ -347,7 +306,7 @@ pub fn draw(f: &mut Frame, state: &mut AppState) {
     let flash_style = state.theme.flash;
     let status_hint = state.theme.status_hint;
 
-    // Create a temporary theme copy for panel drawing
+    // Create a temporary theme copy for list drawing
     let theme_copy = Theme {
         border_active,
         border_inactive,
@@ -361,55 +320,53 @@ pub fn draw(f: &mut Frame, state: &mut AppState) {
         highlight_modifier,
         highlight_fg,
         favorite,
+        sigil_cd: state.theme.sigil_cd,
+        sigil_run: state.theme.sigil_run,
+        sigil_ssh: state.theme.sigil_ssh,
         section_header: state.theme.section_header,
         status_hint,
         flash: flash_style,
         dialog_border: state.theme.dialog_border,
         dialog_key: state.theme.dialog_key,
         dialog_desc: state.theme.dialog_desc,
-        left_panel_pct: state.theme.left_panel_pct,
-        cd_panel_pct: state.theme.cd_panel_pct,
     };
 
-    let cwd_filter = state.cwd_filter;
-    draw_panel(f, left[0], &mut state.panels[0], active == 0, &query, &theme_copy, false);        // cd
-    draw_panel(f, left[1], &mut state.panels[2], active == 2, &query, &theme_copy, false);        // ssh
-    draw_panel(f, cols[1], &mut state.panels[1], active == 1, &query, &theme_copy, cwd_filter);   // run
+    let query = state.query.clone();
+    draw_list(f, chunks[1], &mut state.list, &query, &theme_copy);
 
-    // Preview bar for selected item in active panel (hidden in compact mode)
-    let active_panel = state.active_panel();
+    // Preview bar for the selected row (hidden in compact mode)
     if has_preview {
-    if let Some(idx) = active_panel.selected_index() {
-        let item = &active_panel.items[idx];
-        let exists_str = match item.exists {
-            Some(true) => Span::styled(" exists", Style::default().fg(Color::White)),
-            Some(false) => Span::styled(" MISSING", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-            None => Span::raw(""),
-        };
-        let (label, count_label) = match active_panel.mode {
-            PickerMode::SshHosts => ("  Host: ", "  │  Connections: "),
-            PickerMode::Commands => ("  Cmd: ", "  │  Uses: "),
-            PickerMode::Directories => ("  Path: ", "  │  Visits: "),
-        };
-        let mut spans = vec![
-            Span::styled(label, Style::default().fg(Color::DarkGray)),
-            Span::raw(&item.value),
-            Span::styled(count_label, Style::default().fg(Color::DarkGray)),
-            Span::raw(item.use_count.to_string()),
-            Span::styled("  │  Last: ", Style::default().fg(Color::DarkGray)),
-            Span::raw(format_relative_time(item.last_time)),
-        ];
-        if let Some(ms) = item.duration_ms {
-            spans.push(Span::styled("  │  Duration: ", Style::default().fg(Color::DarkGray)));
-            spans.push(Span::raw(format_duration(ms)));
+        if let Some(row) = state.list.selected_row() {
+            let item = &row.entry;
+            let exists_str = match item.exists {
+                Some(true) => Span::styled(" exists", Style::default().fg(Color::White)),
+                Some(false) => Span::styled(" MISSING", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                None => Span::raw(""),
+            };
+            let (label, count_label) = match row.kind {
+                PickerMode::SshHosts => ("  Host: ", "  │  Connections: "),
+                PickerMode::Commands => ("  Cmd: ", "  │  Uses: "),
+                PickerMode::Directories => ("  Path: ", "  │  Visits: "),
+            };
+            let mut spans = vec![
+                Span::styled(label, Style::default().fg(Color::DarkGray)),
+                Span::raw(&item.value),
+                Span::styled(count_label, Style::default().fg(Color::DarkGray)),
+                Span::raw(item.use_count.to_string()),
+                Span::styled("  │  Last: ", Style::default().fg(Color::DarkGray)),
+                Span::raw(format_relative_time(item.last_time)),
+            ];
+            if let Some(ms) = item.duration_ms {
+                spans.push(Span::styled("  │  Duration: ", Style::default().fg(Color::DarkGray)));
+                spans.push(Span::raw(format_duration(ms)));
+            }
+            spans.push(Span::styled("  │ ", Style::default().fg(Color::DarkGray)));
+            spans.push(exists_str);
+            let detail = Line::from(spans);
+            let preview = Paragraph::new(detail)
+                .block(Block::default().borders(Borders::TOP).title("Details"));
+            f.render_widget(preview, chunks[2]);
         }
-        spans.push(Span::styled("  │ ", Style::default().fg(Color::DarkGray)));
-        spans.push(exists_str);
-        let detail = Line::from(spans);
-        let preview = Paragraph::new(detail)
-            .block(Block::default().borders(Borders::TOP).title("Details"));
-        f.render_widget(preview, chunks[2]);
-    }
     }
 
     // Status bar — show flash message or default hints (hidden in compact mode)
@@ -428,7 +385,7 @@ pub fn draw(f: &mut Frame, state: &mut AppState) {
         } else {
             Line::from(vec![
                 Span::styled(
-                    " F1 help  F2 edit  F5 paste  F8 del  F9 config  Tab  Up/Down  Enter run  ^Y copy  ^F fav  ^W cwd  Esc quit",
+                    " F1 help  F2 edit  F5 paste  F8 del  F9 config  Tab: All → cd → run → ssh  Up/Down  Enter run  ^Y copy  ^F fav  ^W cwd  Esc quit",
                     status_hint,
                 ),
             ])
@@ -802,14 +759,14 @@ fn draw_help(f: &mut Frame, theme: &Theme) {
         Line::from(vec![Span::styled("  Enter       ", key_style), Span::styled("Select and run", desc_style)]),
         Line::from(vec![Span::styled("  S+Enter/F5  ", key_style), Span::styled("Paste to terminal for editing", desc_style)]),
         Line::from(vec![Span::styled("  Esc         ", key_style), Span::styled("Quit", desc_style)]),
-        Line::from(vec![Span::styled("  Tab         ", key_style), Span::styled("Next panel", desc_style)]),
-        Line::from(vec![Span::styled("  Shift+Tab   ", key_style), Span::styled("Previous panel", desc_style)]),
+        Line::from(vec![Span::styled("  Tab         ", key_style), Span::styled("All → cd → run → ssh", desc_style)]),
+        Line::from(vec![Span::styled("  Shift+Tab   ", key_style), Span::styled("Cycle type filter backwards", desc_style)]),
         Line::from(vec![Span::styled("  Up/Down     ", key_style), Span::styled("Navigate list", desc_style)]),
         Line::from(vec![Span::styled("  PgUp/PgDn   ", key_style), Span::styled("Scroll page", desc_style)]),
         Line::from(vec![Span::styled("  Left/Right  ", key_style), Span::styled("Move cursor in search bar", desc_style)]),
         Line::from(vec![Span::styled("  Home/End    ", key_style), Span::styled("Cursor to start/end of search", desc_style)]),
         Line::from(vec![Span::styled("  Ctrl+A/E    ", key_style), Span::styled("Cursor to start/end of search", desc_style)]),
-        Line::from(vec![Span::styled("  Ctrl+W      ", key_style), Span::styled("Toggle CWD filter (run panel)", desc_style)]),
+        Line::from(vec![Span::styled("  Ctrl+W      ", key_style), Span::styled("filter to current directory (all types)", desc_style)]),
         Line::from(vec![Span::styled("  Ctrl+P/N    ", key_style), Span::styled("Navigate up/down", desc_style)]),
         Line::from(vec![Span::styled("  Ctrl+Y      ", key_style), Span::styled("Copy to clipboard", desc_style)]),
         Line::from(vec![Span::styled("  Ctrl+F      ", key_style), Span::styled("Toggle favorite", desc_style)]),

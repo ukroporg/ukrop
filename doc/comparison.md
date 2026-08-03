@@ -13,7 +13,7 @@ alternatives focus on only one of these areas.
 | **Directory jumping**         | Yes                   | Yes            | Yes           | Alt+C           | -                | -              | -              | -                 | -                |
 | **Command history search**    | Yes                   | -             | -            | Ctrl+R          | Yes               | Yes             | Yes             | Yes                | -                |
 | **SSH host picker**           | Yes                   | -             | -            | -              | -                | -              | -              | -                 | -                |
-| **Unified TUI**               | 3-panel               | No (CLI)       | No (CLI)      | Single list     | Single list       | Single list     | Single list     | Single list        | Single list       |
+| **Unified TUI**               | Single list           | No (CLI)       | No (CLI)      | Single list     | Single list       | Single list     | Single list     | Single list        | Single list       |
 | **Frecency scoring**          | Yes                   | Yes            | Yes           | -              | -                | Neural net      | Ranking algo    | -                 | -                |
 | **Fuzzy search**              | nucleo                | fzf (ext)      | -            | Built-in        | Built-in          | Optional        | Substring       | Substring          | Built-in (nucleo) |
 | **Two-tier search**           | Yes (sub+fuzzy)       | -             | -            | -              | -                | -              | -              | -                 | -                |
@@ -38,7 +38,7 @@ alternatives focus on only one of these areas.
 | **SQLite database**           | Yes (WAL)             | No (custom)    | No (text)     | -              | Yes               | Yes             | -              | Yes                | -                |
 | **Import from shell history** | Yes                   | Yes (migrate)  | -            | -              | Yes               | -              | -              | Yes                | -                |
 | **Import SSH config**         | Yes                   | -             | -            | -              | -                | -              | -              | -                 | -                |
-| **In-TUI config editor**      | Yes (F2)              | -             | -            | -              | -                | -              | -              | -                 | -                |
+| **In-TUI config editor**      | Yes (F9)              | -             | -            | -              | -                | -              | -              | -                 | -                |
 | **Non-interactive mode**      | Yes (`u cd foo`)      | Yes (`z foo`)  | Yes (`j foo`) | -              | -                | -              | -              | -                 | -                |
 | **Help overlay (F1)**         | Yes                   | -             | -            | -              | -                | -              | -              | -                 | -                |
 | **License**                   | MIT                   | MIT            | GPL-3.0       | MIT             | MIT               | MIT             | Apache-2.0      | MIT                | MIT               |
@@ -53,7 +53,7 @@ and supports 8+ shells.
 **Where ukrop wins:**
 
 - Built-in command history search and SSH host picker -- zoxide only handles directories
-- Three-panel TUI shows cd, run, and ssh results simultaneously
+- Unified, locality-ranked list shows cd, run, and ssh results together
 - Two-tier search: substring matches rank above fuzzy-only matches, with highlight
 - Favorites system to pin frequently used entries
 - CWD-scoped command filtering
@@ -62,7 +62,7 @@ and supports 8+ shells.
 - Exit code tracking for commands
 - SSH config import alongside shell history import
 - Interactive setup wizard (`ukrop setup`)
-- Configuration file with ignore patterns, scoring weights, theme presets, and in-TUI editor (F2)
+- Configuration file with ignore patterns, scoring weights, theme presets, and in-TUI editor (F9)
 - Auto-cleanup of stale directories (configurable, default 90 days)
 - Non-interactive mode (`u cd foo` prints best match without TUI)
 - No external dependency for fuzzy search (zoxide's interactive mode requires fzf)
@@ -107,7 +107,7 @@ Alt+C) and history search (Ctrl+R).
 
 - Purpose-built for the shell workflow (cd + run + ssh)
 - Frecency scoring -- fzf has no built-in ranking by usage patterns
-- Three-panel TUI with simultaneous results
+- Unified list ranks cd, run, and ssh results together
 - Two-tier search with substring priority
 - Match highlighting distinguishes substring vs fuzzy matches (cyan+underline for matched characters)
 - Tracks directory visits, command metadata (exit codes, CWD), and SSH hosts automatically
@@ -131,11 +131,11 @@ while ukrop provides an integrated experience out of the box.
 **Where ukrop wins:**
 
 - Directory jumping and SSH host picker included (Atuin is command-history only)
-- Three-panel TUI with simultaneous search across all entry types
+- Unified list searches across all entry types at once
 - Two-tier search: substring matches prioritized over fuzzy, with match highlighting
 - Frecency scoring with exponential decay
 - Favorites system, edit-before-execute, clipboard copy
-- In-TUI config editor with live preview (F2)
+- In-TUI config editor with live preview (F9)
 - Auto-cleanup of stale directories
 - Lighter footprint -- no sync daemon, no account needed
 
@@ -161,7 +161,7 @@ tool for directories, commands, and SSH without cloud dependencies.
 **Where ukrop wins:**
 
 - Directory jumping and SSH host picker included
-- Three-panel TUI
+- Unified, locality-ranked list
 - Frecency scoring is transparent and predictable
 - Two-tier search with substring priority and match highlighting
 - Favorites, CWD filtering, edit-before-execute, clipboard copy
@@ -186,7 +186,7 @@ more predictable scoring model.
 - Fuzzy search (HSTR uses substring/regex)
 - Fish shell support
 - Frecency scoring
-- Three-panel TUI
+- Unified, locality-ranked list
 
 **Where HSTR wins:**
 
@@ -208,7 +208,7 @@ larger binary.
 - Frecency scoring
 - Favorites
 - No account or backend required
-- Three-panel TUI
+- Unified, locality-ranked list
 
 **Where hiSHtory wins:**
 
@@ -231,7 +231,7 @@ more use cases in one interface.
 - Purpose-built for shell workflow: directory jumping, command history, and SSH host picking in one tool
 - Frecency scoring with exponential decay ranks results by actual usage patterns
 - Automatic history tracking via shell hooks -- no manual piping needed
-- SSH config import and dedicated SSH host picker panel
+- SSH config import and integrated SSH host picker
 - Two-tier search with substring priority over fuzzy matches
 - Favorites, CWD filtering, edit-before-execute, clipboard copy
 - Exit code tracking for commands
@@ -262,7 +262,7 @@ interactive cheatsheets) and [pet](https://github.com/knqyf263/pet) (snippet man
 serve different purposes.
 
 ukrop includes a configuration file (`~/.config/ukrop/config.toml`) for customizing scoring weights, ignore patterns,
-theme presets, and panel layout, with an in-TUI config editor (F2) that provides live preview of changes.
+theme presets, and ranking weights, with an in-TUI config editor (F9) that provides live preview of changes.
 
 The trade-off is that ukrop does not offer cloud sync or the massive plugin ecosystems of tools like fzf and zoxide.
 

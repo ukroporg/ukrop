@@ -5,7 +5,7 @@ set -g __ukrop_hook_err (mktemp -t ukrop-hook.XXXXXX)
 set -g __ukrop_hook_warned 0
 
 function __ukrop_hook --on-variable PWD
-    command ukrop hook -- "$PWD" 2>/dev/null
+    command ukrop hook --shell-id "$fish_pid" -- "$PWD" 2>/dev/null
 end
 
 function __ukrop_postexec --on-event fish_postexec
@@ -19,7 +19,7 @@ function __ukrop_postexec --on-event fish_postexec
 end
 
 function ukrop
-    if test (count $argv) -eq 0; or test "$argv[1]" = "cd"; or test "$argv[1]" = "run"; or test "$argv[1]" = "ssh"
+    if test (count $argv) -eq 0; or test "$argv[1]" = "cd"; or test "$argv[1]" = "run"; or test "$argv[1]" = "ssh"; or test "$argv[1]" = "search"
         set -l result (command ukrop $argv)
         or return $status
         if test -n "$result"

@@ -29,6 +29,14 @@ impl Store {
         Ok(Store { conn })
     }
 
+    pub(crate) fn conn_ref(&self) -> &rusqlite::Connection {
+        &self.conn
+    }
+
+    pub(crate) fn conn_mut(&mut self) -> &mut rusqlite::Connection {
+        &mut self.conn
+    }
+
     pub fn record_visit(&mut self, path: &str) -> Result<()> {
         let tx = self.conn.transaction()?;
         let now = chrono::Utc::now().timestamp();
@@ -319,12 +327,14 @@ impl Store {
 
     /// Try to match SSH command args against existing hosts and bump frecency.
     /// Matches by: exact host alias, hostname, user@hostname, or user@host.
-    /// Returns true if a match was found.
-    pub fn record_ssh_from_command(&mut self, args: &str) -> Result<bool> {
+    /// Returns the resolved host alias (the same key `ssh_hosts.host` uses,
+    /// and the same value picker rows key on) if a match — or a new record —
+    /// was made, so callers can key transitions against it.
+    pub fn record_ssh_from_command(&mut self, args: &str) -> Result<Option<String>> {
         // Parse the ssh target from args (skip flags like -p, -i, etc.)
         let target = parse_ssh_target(args);
         if target.is_empty() {
-            return Ok(false);
+            return Ok(None);
         }
 
         // Split user@host if present
@@ -346,7 +356,7 @@ impl Store {
 
         if let Some(host) = alias_match {
             self.record_ssh_host(&host, None, None, None, "hook")?;
-            return Ok(true);
+            return Ok(Some(host));
         }
 
         // Try matching by hostname (with optional user)
@@ -379,12 +389,12 @@ impl Store {
 
         if let Some(host) = matched_host {
             self.record_ssh_host(&host, None, None, None, "hook")?;
-            return Ok(true);
+            return Ok(Some(host));
         }
 
         // No existing match — record as new host
         self.record_ssh_host(&target, None, None, None, "hook")?;
-        Ok(true)
+        Ok(Some(target))
     }
 
     pub fn forget(&mut self, target: &str) -> Result<bool> {
@@ -432,35 +442,6 @@ impl Store {
         )?;
         let entries = stmt
             .query_map([], |row| {
-                let score: f64 = row.get(2)?;
-                let last_used: i64 = row.get(4)?;
-                let decayed = frecency::decay(score, last_used, now);
-                Ok(CmdEntry {
-                    id: row.get(0)?,
-                    command: row.get(1)?,
-                    score: decayed,
-                    use_count: row.get(3)?,
-                    last_used,
-                    is_favorite: row.get(5)?,
-                    source: row.get(6)?,
-                    exit_code: row.get(7)?,
-                    cwd: row.get(8)?,
-                    duration_ms: row.get(9)?,
-                })
-            })?
-            .filter_map(|e| e.ok())
-            .filter(|e| e.score >= 0.01 || e.is_favorite)
-            .collect();
-        Ok(entries)
-    }
-
-    pub fn list_commands_by_cwd(&mut self, cwd: &str) -> Result<Vec<CmdEntry>> {
-        let now = chrono::Utc::now().timestamp();
-        let mut stmt = self.conn.prepare(
-            "SELECT id, command, score, use_count, last_used, is_favorite, source, exit_code, cwd, duration_ms FROM commands WHERE cwd = ?1 ORDER BY is_favorite DESC, score DESC",
-        )?;
-        let entries = stmt
-            .query_map([cwd], |row| {
                 let score: f64 = row.get(2)?;
                 let last_used: i64 = row.get(4)?;
                 let decayed = frecency::decay(score, last_used, now);

@@ -3,13 +3,14 @@ pub mod config_dialog;
 pub mod edit_dialog;
 mod fuzzy;
 mod input;
+pub mod ranking;
 pub mod theme;
 mod tty_reader;
 mod ui;
 
 use anyhow::Result;
 
-pub use app::PickerMode;
+pub use app::{PickerMode, UnifiedList};
 
 #[derive(Clone)]
 pub struct PickerEntry {
@@ -121,11 +122,77 @@ fn format_ssh_display(e: &crate::db::model::SshHostEntry) -> String {
     }
 }
 
+/// One entry in the unified list, tagged with which source it came from.
+#[derive(Clone)]
+pub struct Row {
+    pub kind: PickerMode,
+    pub entry: PickerEntry,
+}
+
+/// Which types the unified list is currently showing.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TypeFilter {
+    All,
+    Cd,
+    Run,
+    Ssh,
+}
+
+impl TypeFilter {
+    pub fn next(self) -> Self {
+        match self {
+            TypeFilter::All => TypeFilter::Cd,
+            TypeFilter::Cd => TypeFilter::Run,
+            TypeFilter::Run => TypeFilter::Ssh,
+            TypeFilter::Ssh => TypeFilter::All,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        match self {
+            TypeFilter::All => TypeFilter::Ssh,
+            TypeFilter::Cd => TypeFilter::All,
+            TypeFilter::Run => TypeFilter::Cd,
+            TypeFilter::Ssh => TypeFilter::Run,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            TypeFilter::All => "All",
+            TypeFilter::Cd => "cd",
+            TypeFilter::Run => "run",
+            TypeFilter::Ssh => "ssh",
+        }
+    }
+
+    pub fn accepts(self, kind: PickerMode) -> bool {
+        matches!(
+            (self, kind),
+            (TypeFilter::All, _)
+                | (TypeFilter::Cd, PickerMode::Directories)
+                | (TypeFilter::Run, PickerMode::Commands)
+                | (TypeFilter::Ssh, PickerMode::SshHosts)
+        )
+    }
+}
+
+/// What the picker returns to `lib.rs` when the user selects something.
+pub struct PickResult {
+    pub kind: PickerMode,
+    /// Text written to stdout after the `cd:`/`run:`/`ssh:` prefix.
+    pub output: String,
+    /// The row's database key, used to record a transition. Differs from `output`
+    /// for SSH rows, where `output` is the full connection args.
+    pub key: String,
+    pub edit: bool,
+}
+
 pub fn run_picker(
-    mode: PickerMode,
+    mode: Option<PickerMode>,
     store: &mut crate::db::store::Store,
     initial_query: Option<String>,
     open_config: bool,
-) -> Result<Option<(PickerMode, String, bool)>> {
+) -> Result<Option<PickResult>> {
     app::run(mode, store, initial_query, open_config)
 }

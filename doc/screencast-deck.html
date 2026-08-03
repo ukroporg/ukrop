@@ -130,19 +130,19 @@ $ ukrop setup</pre>
 </div>
 
 <!-- ============================================================ -->
-<!-- SLIDE 4: Three-Panel TUI Overview -->
+<!-- SLIDE 4: Unified List Overview -->
 <!-- ============================================================ -->
 <div class="slide">
-  <h2>Three-Panel TUI</h2>
+  <h2>One Unified List</h2>
   <div class="screenshot-placeholder" style="min-height: 350px;">
     <span class="label">Screenshot: Full TUI</span>
-    Default view after `u` -- all three panels visible: cd (top-left, 26 dirs), run (right, 40 commands), ssh (bottom-left, 10 hosts). Active panel = cd with green border. Details bar shows selected directory path, visit count, last visit time, exists status. Shortcut bar at bottom.
+    Default view after `u` -- one ranked list mixing directories, commands, and SSH hosts, tagged with `/` `$` `@` sigils. Title bar shows match count and the active type filter (All). Details bar shows the selected row's path, visit count, last visit time, exists status. Shortcut bar at bottom.
   </div>
   <div class="two-col" style="margin-top: 20px;">
     <ul class="features">
-      <li><span class="highlight">cd</span> -- directories sorted by frecency</li>
-      <li><span class="highlight">run</span> -- commands from hooks &amp; history</li>
-      <li><span class="highlight">ssh</span> -- hosts from config &amp; history</li>
+      <li><span class="highlight">/</span> cd -- directories, ranked by locality &amp; frecency</li>
+      <li><span class="highlight">$</span> run -- commands from hooks &amp; history</li>
+      <li><span class="highlight">@</span> ssh -- hosts from config &amp; history</li>
     </ul>
     <ul class="features">
       <li>Favorites <span class="green">*</span> pinned to the top</li>
@@ -160,19 +160,19 @@ $ ukrop setup</pre>
 <!-- SLIDE 5: Fuzzy Search -->
 <!-- ============================================================ -->
 <div class="slide">
-  <h2>Fuzzy Search Across All Panels</h2>
-  <p>One search bar filters <span class="highlight">all three panels</span> simultaneously.</p>
+  <h2>Fuzzy Search Across the Whole List</h2>
+  <p>One search bar filters <span class="highlight">the entire ranked list</span> at once -- directories, commands, and hosts together.</p>
   <div class="two-col" style="margin-top: 20px;">
     <div>
       <div class="screenshot-placeholder">
         <span class="label">Screenshot: Search "docker"</span>
-        TUI with "docker" typed in search bar. Run panel highlights docker compose commands. Cd panel shows infra directory. Matched characters highlighted in cyan.
+        TUI with "docker" typed in search bar, type filter still All. Matching rows appear interleaved: <code>$</code> docker compose commands near the top, a <code>/</code> infra directory further down. Matched characters highlighted in cyan.
       </div>
     </div>
     <div>
       <div class="screenshot-placeholder">
         <span class="label">Screenshot: Search "prod"</span>
-        TUI with "prod" typed. SSH panel shows prod-web-01, prod-web-02, prod-db. Run panel shows deploy commands. Matched letters highlighted.
+        TUI with "prod" typed. <code>@</code> prod-web-01, prod-web-02, prod-db and <code>$</code> deploy commands all appear in one ranked list, matched letters highlighted.
       </div>
     </div>
   </div>
@@ -192,11 +192,11 @@ $ ukrop setup</pre>
 <!-- ============================================================ -->
 <div class="slide">
   <h2>Jump to Directory</h2>
-  <pre>$ u cd api          # opens cd panel with "api" pre-filled
-$ u                  # opens TUI, type to filter, Enter to jump</pre>
+  <pre>$ u cd api          # opens the list, cd type filter preselected, "api" pre-filled
+$ u                  # opens the list (All types), type to filter, Enter to jump</pre>
   <div class="screenshot-placeholder">
     <span class="label">Screenshot: cd with "api" filter</span>
-    TUI with "api" in search bar, cd panel active. api-server and api-server/src/handlers visible. Cursor on api-server. Details bar shows path, visit count.
+    TUI with "api" in search bar, title bar reads "filter: cd". <code>/</code> api-server and api-server/src/handlers visible. Cursor on api-server. Details bar shows path, visit count.
   </div>
   <p style="margin-top: 20px;">
     <span class="key">Enter</span> to jump &nbsp;|&nbsp;
@@ -216,7 +216,7 @@ $ u                  # opens TUI, type to filter, Enter to jump</pre>
   <p><span class="key">Ctrl+R</span> replaces your shell's built-in reverse search.</p>
   <div class="screenshot-placeholder">
     <span class="label">Screenshot: Ctrl+R with "compose" filter</span>
-    TUI opened via Ctrl+R, run panel active, "compose" in search bar. Docker compose commands visible: up -d, logs -f api, down. Cursor on "docker compose up -d".
+    TUI opened via Ctrl+R, title bar reads "filter: run", "compose" in search bar. <code>$</code> docker compose commands visible: up -d, logs -f api, down. Cursor on "docker compose up -d".
   </div>
   <div class="two-col" style="margin-top: 20px;">
     <div>
@@ -225,7 +225,7 @@ $ u                  # opens TUI, type to filter, Enter to jump</pre>
     </div>
     <div>
       <p><span class="key">Ctrl+Y</span> -- copy to clipboard</p>
-      <p style="margin-top: 10px;"><span class="key">Ctrl+W</span> -- CWD filter: show only commands run here</p>
+      <p style="margin-top: 10px;"><span class="key">Ctrl+W</span> -- CWD filter: narrow to rows tied to here</p>
     </div>
   </div>
 
@@ -239,11 +239,11 @@ $ u                  # opens TUI, type to filter, Enter to jump</pre>
 <!-- ============================================================ -->
 <div class="slide">
   <h2>SSH Host Picker</h2>
-  <pre>$ u ssh              # opens TUI with ssh panel active
+  <pre>$ u ssh              # opens the list, ssh type filter preselected
 $ u ssh prod         # pre-filled with "prod"</pre>
   <div class="screenshot-placeholder">
-    <span class="label">Screenshot: SSH panel active</span>
-    TUI with ssh panel active (green border). Shows hosts: prod-web-01 with deploy@10.0.1.10, bastion with alex@bastion.example.com:2222, prod-db with postgres@10.0.2.10:5432. Favorites starred. Details bar shows host info.
+    <span class="label">Screenshot: ssh type filter active</span>
+    TUI with title bar reading "filter: ssh". Shows <code>@</code> hosts: prod-web-01 with deploy@10.0.1.10, bastion with alex@bastion.example.com:2222, prod-db with postgres@10.0.2.10:5432. Favorites starred. Details bar shows host info.
   </div>
   <ul style="margin-top: 20px;">
     <li>Imports from <code>~/.ssh/config</code> and shell history</li>
@@ -265,7 +265,7 @@ $ u ssh prod         # pre-filled with "prod"</pre>
     <div>
       <div class="screenshot-placeholder">
         <span class="label">Screenshot: Favorites</span>
-        TUI showing starred items (yellow *) at top of cd and run panels: webapp, api-server, nvim config in cd; git status, cargo test, npm run dev in run.
+        TUI, type filter All, showing starred items (yellow *) near the top of the list: <code>/</code> webapp, api-server, nvim config and <code>$</code> git status, cargo test, npm run dev, interleaved by rank.
       </div>
     </div>
     <div style="padding-top: 40px;">
@@ -320,17 +320,16 @@ $ u ssh prod         # pre-filled with "prod"</pre>
   <div class="two-col">
     <div class="screenshot-placeholder" style="min-height: 350px;">
       <span class="label">Screenshot: Config editor overlay</span>
-      F2 config dialog open over the TUI. Shows sections: Scoring (frecency_weight: 100, substring_bonus: 8000, prefix_bonus: 10000), Cleanup (stale_days: 90), Theme (preset: Gruvbox with arrows, selection_bold: [x], match_underline: [x], favorite_italic: [ ]), Layout (left_panel_pct: 25, cd_panel_pct: 75), Ignore Patterns ([+ Add new pattern]). Bottom: F2/^S save, Esc cancel, arrows navigate.
+      F9 config dialog open over the TUI. Shows sections: Scoring (frecency_weight: 100, substring_bonus: 8000, prefix_bonus: 10000), Cleanup (stale_days: 90), Theme (preset: Gruvbox with arrows, selection_bold: [x], match_underline: [x], favorite_italic: [ ]), Ignore Patterns ([+ Add new pattern]). No Layout section anymore -- the unified list has no panels to size. Bottom: F9/^S save, Esc cancel, arrows navigate.
     </div>
     <div style="padding-top: 20px;">
-      <p><span class="key">F2</span> to open / save</p>
+      <p><span class="key">F9</span> to open / save</p>
       <p style="margin-top: 15px;"><span class="key">Esc</span> to cancel &amp; revert</p>
       <p style="margin-top: 30px;">Sections:</p>
       <ul class="features" style="margin-top: 10px;">
         <li><span class="highlight">Scoring</span> -- ranking weights</li>
         <li><span class="highlight">Cleanup</span> -- stale directory pruning</li>
         <li><span class="highlight">Theme</span> -- 12 presets, live preview</li>
-        <li><span class="highlight">Layout</span> -- panel proportions</li>
         <li><span class="highlight">Ignore</span> -- exclude commands</li>
       </ul>
       <p style="margin-top: 20px;">All changes preview <span class="green">live</span> behind the dialog.</p>
@@ -338,7 +337,7 @@ $ u ssh prod         # pre-filled with "prod"</pre>
   </div>
 
   <div class="annotation">
-    Voice: "F2 opens the config editor. 12 built-in themes with live preview -- the panels behind update as you browse. Tweak layout ratios, scoring weights, ignore patterns. F2 saves, Esc cancels and reverts everything."
+    Voice: "F9 opens the config editor. 12 built-in themes with live preview -- the list behind updates as you browse. Tweak scoring weights, ignore patterns. F9 saves, Esc cancels and reverts everything."
   </div>
 </div>
 
@@ -382,13 +381,13 @@ $ u ssh prod         # pre-filled with "prod"</pre>
   <div class="two-col">
     <div>
       <p style="margin-bottom: 15px; color: #ffd700;">Navigation</p>
-      <p><span class="key">Tab</span> / <span class="key">Shift+Tab</span> -- switch panel</p>
+      <p><span class="key">Tab</span> / <span class="key">Shift+Tab</span> -- cycle type filter</p>
       <p><span class="key">Up</span> / <span class="key">Down</span> -- move in list</p>
       <p><span class="key">PgUp</span> / <span class="key">PgDn</span> -- scroll page</p>
       <p><span class="key">Home</span> / <span class="key">End</span> -- cursor in search</p>
       <p style="margin-top: 25px; margin-bottom: 15px; color: #ffd700;">Search</p>
       <p><span class="key">Ctrl+U</span> -- clear search</p>
-      <p><span class="key">Ctrl+W</span> -- CWD filter / delete word</p>
+      <p><span class="key">Ctrl+W</span> -- toggle CWD filter</p>
     </div>
     <div>
       <p style="margin-bottom: 15px; color: #ffd700;">Actions</p>
@@ -399,7 +398,8 @@ $ u ssh prod         # pre-filled with "prod"</pre>
       <p><span class="key">Ctrl+Del</span> -- delete entry</p>
       <p style="margin-top: 25px; margin-bottom: 15px; color: #ffd700;">Other</p>
       <p><span class="key">F1</span> -- help overlay</p>
-      <p><span class="key">F2</span> -- config editor</p>
+      <p><span class="key">F2</span> -- edit command</p>
+      <p><span class="key">F9</span> -- config editor</p>
       <p><span class="key">Esc</span> -- quit</p>
     </div>
   </div>

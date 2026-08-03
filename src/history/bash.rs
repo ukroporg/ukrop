@@ -13,6 +13,23 @@ pub fn parse_history_with_cwd() -> Result<Vec<(String, Option<String>)>> {
 }
 
 pub fn parse_history_file_with_cwd(path: &str) -> Result<Vec<(String, Option<String>)>> {
+    Ok(dedup_with_cwd(
+        parse_history_file_pairs_raw(path)?,
+        should_skip,
+    ))
+}
+
+/// Parse bash history and guess cwd for each command by tracking cd commands,
+/// without deduping. Used to derive directory/ssh transitions, where a route
+/// walked more than once must be counted more than once.
+pub fn parse_history_with_cwd_raw() -> Result<Vec<(String, Option<String>)>> {
+    let path = dirs::home_dir()
+        .map(|h| h.join(".bash_history"))
+        .unwrap_or_default();
+    parse_history_file_pairs_raw(&path.to_string_lossy())
+}
+
+pub fn parse_history_file_pairs_raw(path: &str) -> Result<Vec<(String, Option<String>)>> {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(_) => return Ok(vec![]),
@@ -26,13 +43,14 @@ pub fn parse_history_file_with_cwd(path: &str) -> Result<Vec<(String, Option<Str
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        if let Some(dir) = resolve_cd_target(line) {
+        let next_cwd = resolve_cd_target(line);
+        pairs.push((line.to_string(), current_cwd.clone()));
+        if let Some(dir) = next_cwd {
             current_cwd = Some(dir);
         }
-        pairs.push((line.to_string(), current_cwd.clone()));
     }
 
-    Ok(dedup_with_cwd(pairs, should_skip))
+    Ok(pairs)
 }
 
 pub fn parse_history() -> Result<Vec<String>> {

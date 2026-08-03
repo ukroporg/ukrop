@@ -9,7 +9,7 @@ $global:__ukrop_last_cmd = $null
 function global:__ukrop_hook {
     $cwd = (Get-Location).ProviderPath
     if ($null -ne $cwd) {
-        & ukrop hook -- $cwd
+        & ukrop hook --shell-id "$PID" -- $cwd
     }
 }
 
@@ -47,7 +47,7 @@ if ($global:__ukrop_hooked -ne 1) {
 }
 
 function global:ukrop {
-    if ($args.Count -eq 0 -or $args[0] -eq 'cd' -or $args[0] -eq 'run' -or $args[0] -eq 'ssh') {
+    if ($args.Count -eq 0 -or $args[0] -eq 'cd' -or $args[0] -eq 'run' -or $args[0] -eq 'ssh' -or $args[0] -eq 'search') {
         $encoding = [Console]::OutputEncoding
         try {
             [Console]::OutputEncoding = [System.Text.Utf8Encoding]::new()

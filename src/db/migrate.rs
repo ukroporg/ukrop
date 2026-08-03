@@ -96,5 +96,23 @@ pub fn run(conn: &Connection) -> Result<()> {
         )?;
     }
 
+    if version < 5 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS transitions (
+                from_cwd  TEXT    NOT NULL,
+                kind      TEXT    NOT NULL,
+                target    TEXT    NOT NULL,
+                score     REAL    NOT NULL DEFAULT 0.0,
+                count     INTEGER NOT NULL DEFAULT 0,
+                last_time INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (from_cwd, kind, target)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_transitions_from ON transitions(from_cwd);
+
+            INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', '5');",
+        )?;
+    }
+
     Ok(())
 }

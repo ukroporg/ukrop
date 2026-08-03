@@ -13,7 +13,7 @@ trap '__ukrop_preexec' DEBUG
 
 __ukrop_hook() {
     local exit_code=$?
-    command ukrop hook -- "$PWD" 2>/dev/null
+    command ukrop hook --shell-id "$$" -- "$PWD" 2>/dev/null
     if [ -n "$__ukrop_last_cmd" ]; then
         local duration_args=""
         if [ -n "$__ukrop_cmd_start" ]; then
@@ -36,7 +36,7 @@ if [[ ! "$PROMPT_COMMAND" == *"__ukrop_hook"* ]]; then
 fi
 
 ukrop() {
-    if [ $# -eq 0 ] || [ "$1" = "cd" ] || [ "$1" = "run" ] || [ "$1" = "ssh" ]; then
+    if [ $# -eq 0 ] || [ "$1" = "cd" ] || [ "$1" = "run" ] || [ "$1" = "ssh" ] || [ "$1" = "search" ]; then
         local result
         result="$(command ukrop "$@")" || return $?
         if [ -n "$result" ]; then

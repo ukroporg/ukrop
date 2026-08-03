@@ -5,7 +5,7 @@ __ukrop_hook_err="${TMPDIR:-/tmp}/ukrop-hook-$$.err"
 __ukrop_hook_warned=0
 
 __ukrop_hook() {
-    command ukrop hook -- "$PWD" 2>/dev/null
+    command ukrop hook --shell-id "$$" -- "$PWD" 2>/dev/null
 }
 
 __ukrop_preexec() {
@@ -41,7 +41,7 @@ if (( ${preexec_functions[(Ie)__ukrop_preexec]} == 0 )); then
 fi
 
 ukrop() {
-    if [[ $# -eq 0 ]] || [[ "$1" == "cd" ]] || [[ "$1" == "run" ]] || [[ "$1" == "ssh" ]]; then
+    if [[ $# -eq 0 ]] || [[ "$1" == "cd" ]] || [[ "$1" == "run" ]] || [[ "$1" == "ssh" ]] || [[ "$1" == "search" ]]; then
         local result
         result="$(command ukrop "$@")" || return $?
         if [[ -n "$result" ]]; then
