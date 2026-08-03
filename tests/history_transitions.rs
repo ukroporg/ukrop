@@ -44,12 +44,58 @@ fn test_extracts_ssh_transitions_with_originating_dir() {
     )));
 }
 
+/// The fixture's very first line is `cd /home/me/projects`, run from an unknown
+/// directory: the parser reports `cwd: None` for it, so no transition can be
+/// attributed. Assert on the concrete transition set rather than on
+/// `!from.is_empty()` — an unknown origin is a `None`, never an empty string,
+/// so that predicate is vacuously true and tests nothing.
 #[test]
 fn test_first_cd_has_no_origin_and_is_skipped() {
     let t = history::extract_transitions(&pairs());
-    assert!(
-        !t.iter().any(|(from, _, _)| from.is_empty()),
-        "no transition may have an empty origin"
+
+    assert_eq!(
+        t,
+        vec![
+            (
+                "/home/me/projects".to_string(),
+                "cd".to_string(),
+                "/home/me/projects/api".to_string()
+            ),
+            (
+                "/home/me/projects/api".to_string(),
+                "ssh".to_string(),
+                "prod-web1".to_string()
+            ),
+            (
+                "/home/me/projects/api".to_string(),
+                "cd".to_string(),
+                "/home/me/projects".to_string()
+            ),
+            (
+                "/home/me/projects".to_string(),
+                "ssh".to_string(),
+                "prod-db".to_string()
+            ),
+            (
+                "/home/me/projects".to_string(),
+                "cd".to_string(),
+                "/home/me/projects/api".to_string()
+            ),
+        ],
+        "9 history lines must yield exactly these 5 transitions"
+    );
+
+    // The only `cd` into /home/me/projects is the one on line 6 (from .../api).
+    // If the origin-less first line were recorded there would be a second.
+    let into_projects: Vec<&String> = t
+        .iter()
+        .filter(|(_, kind, target)| kind == "cd" && target == "/home/me/projects")
+        .map(|(from, _, _)| from)
+        .collect();
+    assert_eq!(
+        into_projects,
+        vec!["/home/me/projects/api"],
+        "the origin-less first `cd /home/me/projects` must contribute no transition"
     );
 }
 

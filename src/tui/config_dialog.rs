@@ -1,4 +1,4 @@
-use crate::config::{Config, LayoutConfig, ThemePreset};
+use crate::config::{Config, LayoutConfig, ScoringConfig, ThemePreset};
 
 pub struct ConfigDialog {
     pub fields: Vec<ConfigField>,
@@ -9,6 +9,11 @@ pub struct ConfigDialog {
     /// have custom values in their `config.toml`. Carry them through
     /// unedited so saving the dialog doesn't silently reset them.
     layout: LayoutConfig,
+    /// The dialog only exposes three of `[scoring]`'s thirteen keys, but every
+    /// key is documented as user-tunable. Keep the source section verbatim and
+    /// overwrite only the edited fields in `to_config`, so the other ten
+    /// round-trip untouched instead of snapping back to `Config::default()`.
+    scoring: ScoringConfig,
 }
 
 pub struct ConfigField {
@@ -91,12 +96,14 @@ impl ConfigDialog {
             focused: 0,
             dirty: false,
             layout: cfg.layout.clone(),
+            scoring: cfg.scoring.clone(),
         }
     }
 
     pub fn to_config(&self) -> Result<Config, String> {
         let mut cfg = Config::default();
         cfg.layout = self.layout.clone();
+        cfg.scoring = self.scoring.clone();
 
         for field in &self.fields {
             match (field.label, &field.kind) {
@@ -397,5 +404,62 @@ mod tests {
             round_tripped.layout.cd_panel_pct, 44,
             "cd_panel_pct must round-trip unchanged, not reset to default"
         );
+    }
+
+    /// The dialog edits only `frecency_weight`, `substring_bonus` and
+    /// `prefix_bonus`, but `[scoring]` has ten more documented, user-tunable
+    /// keys. `to_config` must carry those through from the source config
+    /// instead of resetting them to `Config::default()` on every F9 save.
+    #[test]
+    fn test_to_config_preserves_non_dialog_scoring_values() {
+        let mut cfg = crate::config::Config::default();
+        cfg.scoring.frecency_cap = 111;
+        cfg.scoring.fuzzy_penalty = -1000;
+        cfg.scoring.favorite_bonus = 9999;
+        cfg.scoring.recency_24h_bonus = 222;
+        cfg.scoring.recency_7d_bonus = 333;
+        cfg.scoring.cwd_bonus = 444;
+        cfg.scoring.transition_weight = 55.5;
+        cfg.scoring.transition_cap = 666;
+        cfg.scoring.brevity_bonus_max = 777;
+        cfg.scoring.type_bonus.schedule = vec![10, 5, 0];
+
+        let dialog = ConfigDialog::from_config(&cfg);
+        let rt = dialog.to_config().expect("valid default fields");
+
+        assert_eq!(rt.scoring.frecency_cap, 111, "frecency_cap must round-trip");
+        assert_eq!(rt.scoring.fuzzy_penalty, -1000, "fuzzy_penalty must round-trip");
+        assert_eq!(rt.scoring.favorite_bonus, 9999, "favorite_bonus must round-trip");
+        assert_eq!(rt.scoring.recency_24h_bonus, 222, "recency_24h_bonus must round-trip");
+        assert_eq!(rt.scoring.recency_7d_bonus, 333, "recency_7d_bonus must round-trip");
+        assert_eq!(rt.scoring.cwd_bonus, 444, "cwd_bonus must round-trip");
+        assert_eq!(rt.scoring.transition_weight, 55.5, "transition_weight must round-trip");
+        assert_eq!(rt.scoring.transition_cap, 666, "transition_cap must round-trip");
+        assert_eq!(rt.scoring.brevity_bonus_max, 777, "brevity_bonus_max must round-trip");
+        assert_eq!(
+            rt.scoring.type_bonus.schedule,
+            vec![10, 5, 0],
+            "type_bonus.schedule must round-trip"
+        );
+    }
+
+    /// The three keys the dialog *does* own must still reflect edits made in
+    /// the dialog, not the carried-through source values.
+    #[test]
+    fn test_to_config_still_applies_edited_scoring_fields() {
+        let cfg = crate::config::Config::default();
+        let mut dialog = ConfigDialog::from_config(&cfg);
+
+        dialog.focused = 1;
+        assert_eq!(dialog.fields[1].label, "substring_bonus");
+        if let FieldKind::Uint { value } = &mut dialog.fields[1].kind {
+            value.clear();
+        }
+        for c in "1234".chars() {
+            dialog.handle_char(c);
+        }
+
+        let rt = dialog.to_config().expect("valid fields");
+        assert_eq!(rt.scoring.substring_bonus, 1234, "edited field must win over carry-through");
     }
 }

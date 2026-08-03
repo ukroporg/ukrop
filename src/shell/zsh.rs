@@ -41,7 +41,7 @@ if (( ${preexec_functions[(Ie)__ukrop_preexec]} == 0 )); then
 fi
 
 ukrop() {
-    if [[ $# -eq 0 ]] || [[ "$1" == "cd" ]] || [[ "$1" == "run" ]] || [[ "$1" == "ssh" ]]; then
+    if [[ $# -eq 0 ]] || [[ "$1" == "cd" ]] || [[ "$1" == "run" ]] || [[ "$1" == "ssh" ]] || [[ "$1" == "search" ]]; then
         local result
         result="$(command ukrop "$@")" || return $?
         if [[ -n "$result" ]]; then

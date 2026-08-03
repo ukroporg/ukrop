@@ -19,7 +19,7 @@ function __ukrop_postexec --on-event fish_postexec
 end
 
 function ukrop
-    if test (count $argv) -eq 0; or test "$argv[1]" = "cd"; or test "$argv[1]" = "run"; or test "$argv[1]" = "ssh"
+    if test (count $argv) -eq 0; or test "$argv[1]" = "cd"; or test "$argv[1]" = "run"; or test "$argv[1]" = "ssh"; or test "$argv[1]" = "search"
         set -l result (command ukrop $argv)
         or return $status
         if test -n "$result"

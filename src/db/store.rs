@@ -464,35 +464,6 @@ impl Store {
         Ok(entries)
     }
 
-    pub fn list_commands_by_cwd(&mut self, cwd: &str) -> Result<Vec<CmdEntry>> {
-        let now = chrono::Utc::now().timestamp();
-        let mut stmt = self.conn.prepare(
-            "SELECT id, command, score, use_count, last_used, is_favorite, source, exit_code, cwd, duration_ms FROM commands WHERE cwd = ?1 ORDER BY is_favorite DESC, score DESC",
-        )?;
-        let entries = stmt
-            .query_map([cwd], |row| {
-                let score: f64 = row.get(2)?;
-                let last_used: i64 = row.get(4)?;
-                let decayed = frecency::decay(score, last_used, now);
-                Ok(CmdEntry {
-                    id: row.get(0)?,
-                    command: row.get(1)?,
-                    score: decayed,
-                    use_count: row.get(3)?,
-                    last_used,
-                    is_favorite: row.get(5)?,
-                    source: row.get(6)?,
-                    exit_code: row.get(7)?,
-                    cwd: row.get(8)?,
-                    duration_ms: row.get(9)?,
-                })
-            })?
-            .filter_map(|e| e.ok())
-            .filter(|e| e.score >= 0.01 || e.is_favorite)
-            .collect();
-        Ok(entries)
-    }
-
     pub fn is_empty(&self) -> Result<bool> {
         let count: i64 = self.conn.query_row(
             "SELECT (SELECT COUNT(*) FROM directories) + (SELECT COUNT(*) FROM commands) + (SELECT COUNT(*) FROM ssh_hosts)",

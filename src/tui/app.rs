@@ -19,6 +19,20 @@ use crate::config::Config;
 use crate::db::store::Store;
 use std::io::Write as IoWrite;
 
+/// Route a favorite toggle to the store method that owns the row's table.
+///
+/// Extracted out of the run loop (which needs a real TTY) so the per-kind
+/// dispatch is unit-testable: directories, commands and ssh_hosts each have
+/// their own `is_favorite` column, and the same string can exist in more than
+/// one of them, so a wrong-method dispatch would silently flag the wrong row.
+pub fn toggle_favorite_for(store: &mut Store, kind: PickerMode, value: &str) -> Result<bool> {
+    match kind {
+        PickerMode::Directories => store.toggle_favorite_dir(value),
+        PickerMode::Commands => store.toggle_favorite_cmd(value),
+        PickerMode::SshHosts => store.toggle_favorite_ssh(value),
+    }
+}
+
 fn copy_to_clipboard(text: &str) -> Result<()> {
     let mut child = if cfg!(target_os = "macos") {
         std::process::Command::new("pbcopy")
@@ -78,14 +92,6 @@ pub enum PickerMode {
 }
 
 impl PickerMode {
-    pub fn label(self) -> &'static str {
-        match self {
-            PickerMode::Directories => "cd",
-            PickerMode::Commands => "run",
-            PickerMode::SshHosts => "ssh",
-        }
-    }
-
     /// Stable identifier used as the `kind` column in the transitions table.
     pub fn db_kind(self) -> &'static str {
         match self {
@@ -322,12 +328,20 @@ impl UnifiedList {
         }
     }
 
-    /// Matched character positions for highlighting. Takes `&self` so it can be
-    /// called while `rows` is borrowed for rendering; the matcher is built on
-    /// the spot rather than reusing the `&mut self` scratch buffer.
-    pub fn fuzzy_positions(&self, query: &str, text: &str) -> Vec<u32> {
-        let mut m = FuzzyMatcher::new();
-        m.match_positions(query, text)
+    /// Matched character positions for highlighting.
+    ///
+    /// Takes the matcher as a parameter rather than using `self.fuzzy`, so the
+    /// render loop can hold an immutable borrow of `rows` while still reusing a
+    /// single matcher across all rows. Constructing a `FuzzyMatcher` per row
+    /// costs ~100KB of allocation each and dominated the redraw path.
+    pub fn fuzzy_positions(&self, matcher: &mut FuzzyMatcher, query: &str, text: &str) -> Vec<u32> {
+        if query.is_empty() {
+            // `match_positions` short-circuits on an empty query anyway; bail
+            // out before touching the matcher so the opening screen (no query,
+            // every row rendered) does no work at all.
+            return Vec::new();
+        }
+        matcher.match_positions(query, text)
     }
 }
 
@@ -557,11 +571,7 @@ pub fn run(
                         if let Some(row_idx) = state.list.selected_row_index() {
                             let row = &state.list.rows[row_idx];
                             let value = row.entry.value.clone();
-                            let new_fav = match row.kind {
-                                PickerMode::Directories => store.toggle_favorite_dir(&value),
-                                PickerMode::Commands => store.toggle_favorite_cmd(&value),
-                                PickerMode::SshHosts => store.toggle_favorite_ssh(&value),
-                            };
+                            let new_fav = toggle_favorite_for(store, row.kind, &value);
                             if let Ok(fav) = new_fav {
                                 state.list.rows[row_idx].entry.is_favorite = fav;
                             }
@@ -596,8 +606,12 @@ pub fn run(
                             if let Some(row) = state.list.selected_row() {
                                 return Ok(Some(PickResult {
                                     kind: row.kind,
-                                    output: dialog.text.clone(),
-                                    key: dialog.text,
+                                    output: dialog.text,
+                                    // Key on the *original* row, not the edited
+                                    // text: `key` is what gets written to the
+                                    // transitions table, and only a real row
+                                    // value can ever match a future picker row.
+                                    key: row.entry.value.clone(),
                                     edit: false,
                                 }));
                             }
@@ -918,6 +932,85 @@ mod unified_tests {
             .collect();
         assert!(shown.contains(&"ls".to_string()));
         assert!(shown.contains(&"/target".to_string()));
+    }
+
+    /// The run loop's favorite handler dispatches on the row's `PickerMode` to
+    /// one of three per-table store methods. Seed the *same* string into all
+    /// three tables so a wrong-method dispatch cannot pass unnoticed: after
+    /// toggling for one kind, exactly that kind's table may be flagged.
+    #[test]
+    fn test_toggle_favorite_dispatches_to_the_matching_store_table() {
+        use crate::db::store::Store;
+
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("t.db");
+        let mut store = Store::open(db.to_str().unwrap()).unwrap();
+
+        // One identical key present in directories, commands and ssh_hosts.
+        const KEY: &str = "shared-key";
+        store.record_visit(KEY).unwrap();
+        store.record_command(KEY, "test").unwrap();
+        store.record_ssh_host(KEY, None, None, None, "test").unwrap();
+
+        // (dir_fav, cmd_fav, ssh_fav) as currently stored.
+        fn favs(store: &mut Store) -> (bool, bool, bool) {
+            let d = store
+                .list_directories()
+                .unwrap()
+                .into_iter()
+                .find(|e| e.path == KEY)
+                .map(|e| e.is_favorite)
+                .expect("directory row");
+            let c = store
+                .list_commands()
+                .unwrap()
+                .into_iter()
+                .find(|e| e.command == KEY)
+                .map(|e| e.is_favorite)
+                .expect("command row");
+            let s = store
+                .list_ssh_hosts()
+                .unwrap()
+                .into_iter()
+                .find(|e| e.host == KEY)
+                .map(|e| e.is_favorite)
+                .expect("ssh row");
+            (d, c, s)
+        }
+
+        assert_eq!(favs(&mut store), (false, false, false), "nothing starts favorited");
+
+        assert!(
+            toggle_favorite_for(&mut store, PickerMode::Directories, KEY).unwrap(),
+            "toggle must report the new state"
+        );
+        assert_eq!(
+            favs(&mut store),
+            (true, false, false),
+            "a Directories row must hit toggle_favorite_dir only"
+        );
+
+        assert!(toggle_favorite_for(&mut store, PickerMode::Commands, KEY).unwrap());
+        assert_eq!(
+            favs(&mut store),
+            (true, true, false),
+            "a Commands row must hit toggle_favorite_cmd only"
+        );
+
+        assert!(toggle_favorite_for(&mut store, PickerMode::SshHosts, KEY).unwrap());
+        assert_eq!(
+            favs(&mut store),
+            (true, true, true),
+            "an SshHosts row must hit toggle_favorite_ssh only"
+        );
+
+        // Toggling back is equally kind-scoped.
+        assert!(!toggle_favorite_for(&mut store, PickerMode::Commands, KEY).unwrap());
+        assert_eq!(
+            favs(&mut store),
+            (true, false, true),
+            "un-favoriting a Commands row must not touch the other two tables"
+        );
     }
 
     #[test]

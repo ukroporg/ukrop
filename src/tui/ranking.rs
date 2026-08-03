@@ -447,18 +447,55 @@ mod tests {
         assert!(run_pos < 5, "run row must not be pinned to last, got position {}", run_pos);
     }
 
+    /// The schedule's last element is a *floor*, applied to every position past
+    /// its end rather than the penalty continuing to deepen. This fixture drives
+    /// `interleave` past the end of the default 5-element schedule — seven cd
+    /// rows means `counts[cd]` reaches 6 — so the clamp in `type_bonus_at` is
+    /// exercised through the merge, not just called directly.
     #[test]
     fn test_floor_prevents_type_lockout() {
-        // A high-merit cd row must still appear even after a long wall of run rows.
+        // Default schedule is [3000, 1500, 0, -1500, -3000]; index 4 is the floor.
         let c = crate::config::TypeBonusConfig::default();
-        let mut rows: Vec<Scored> = (0..50)
-            .map(|i| s(i, PickerMode::Commands, 20_000 - i as i32))
-            .collect();
-        rows.push(s(100, PickerMode::Directories, 15_000));
+
+        // Seven near-equal cd rows plus one run row. Adjusted cd scores as the
+        // merge emits them: 13000, 11490, 9980, 8470, 6960, 6950, 6940 — the
+        // last three all use the -3000 floor (positions 4, 5 and 6).
+        let rows = vec![
+            s(0, PickerMode::Directories, 10_000),
+            s(1, PickerMode::Directories, 9_990),
+            s(2, PickerMode::Directories, 9_980),
+            s(3, PickerMode::Directories, 9_970),
+            s(4, PickerMode::Directories, 9_960),
+            s(5, PickerMode::Directories, 9_950),
+            s(6, PickerMode::Directories, 9_940),
+            // Sits between the 5th cd row's floored score (6960) and the 6th's
+            // (6950), so its position pins down the floor's exact value.
+            s(7, PickerMode::Commands, 6_955),
+        ];
         let out = interleave(rows, &c);
-        let cd_pos = out.iter().position(|x| x.kind == PickerMode::Directories).unwrap();
-        assert!(cd_pos < 51, "cd row must appear somewhere, got {}", cd_pos);
-        assert_eq!(out.len(), 51);
+
+        assert_eq!(out.len(), 8);
+        let run_pos = out.iter().position(|x| x.kind == PickerMode::Commands).unwrap();
+        assert_eq!(
+            run_pos, 5,
+            "run row must land after exactly 5 cd rows: the 5th cd row's floored \
+             score (9960-3000=6960) still beats it, the 6th's (9950-3000=6950) does not; \
+             got {} with scores {:?}",
+            run_pos,
+            out.iter().map(|x| x.score).collect::<Vec<_>>()
+        );
+
+        // The two cd rows emitted past the end of the schedule must both get the
+        // clamped floor, not an ever-deepening penalty.
+        assert_eq!(out[4].score, 9_960 - 3_000, "cd at position 4 uses the floor");
+        assert_eq!(out[6].score, 9_950 - 3_000, "cd at position 5 clamps to the floor");
+        assert_eq!(out[7].score, 9_940 - 3_000, "cd at position 6 clamps to the floor");
+
+        // And nothing gets locked out: every input row is still present.
+        assert_eq!(
+            out.iter().filter(|x| x.kind == PickerMode::Directories).count(),
+            7
+        );
     }
 
     #[test]

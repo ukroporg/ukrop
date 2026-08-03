@@ -9,6 +9,7 @@ use ratatui::Frame;
 use super::app::{AppState, PickerMode, UnifiedList};
 use super::config_dialog::{ConfigDialog, FieldKind};
 use super::edit_dialog::EditDialog;
+use super::fuzzy::FuzzyMatcher;
 use super::theme::Theme;
 
 fn format_relative_time(ts: i64) -> String {
@@ -160,6 +161,9 @@ fn draw_list(
     let ranked: Vec<(usize, PickerMode)> =
         list.ranked.iter().map(|s| (s.row_idx, s.kind)).collect();
 
+    // One matcher for the whole pass: `FuzzyMatcher::new` allocates ~100KB, so
+    // building one per row made redraw cost scale with database size.
+    let mut matcher = FuzzyMatcher::new();
     let mut list_items: Vec<ListItem> = Vec::with_capacity(ranked.len());
     for (display_idx, (row_idx, kind)) in ranked.iter().enumerate() {
         let item = &list.rows[*row_idx].entry;
@@ -178,7 +182,7 @@ fn draw_list(
             // Selected long command: wrap over up to 5 rows.
             let lines = wrap_command(&item.display, text_max_width, 5);
             let full_text: String = lines.concat();
-            let positions = list.fuzzy_positions(query, &full_text);
+            let positions = list.fuzzy_positions(&mut matcher, query, &full_text);
             let mut spans_lines: Vec<Line> = Vec::new();
             let mut char_offset = 0usize;
             for (i, line_text) in lines.iter().enumerate() {
@@ -211,7 +215,7 @@ fn draw_list(
             } else {
                 truncate_path(&item.display, text_max_width)
             };
-            let positions = list.fuzzy_positions(query, &text);
+            let positions = list.fuzzy_positions(&mut matcher, query, &text);
             let text_spans = highlighted_spans(&text, &positions, style, hl_style);
             let mut line_spans = vec![
                 Span::styled(selector, theme.selected),

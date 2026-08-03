@@ -36,7 +36,7 @@ if [[ ! "$PROMPT_COMMAND" == *"__ukrop_hook"* ]]; then
 fi
 
 ukrop() {
-    if [ $# -eq 0 ] || [ "$1" = "cd" ] || [ "$1" = "run" ] || [ "$1" = "ssh" ]; then
+    if [ $# -eq 0 ] || [ "$1" = "cd" ] || [ "$1" = "run" ] || [ "$1" = "ssh" ] || [ "$1" = "search" ]; then
         local result
         result="$(command ukrop "$@")" || return $?
         if [ -n "$result" ]; then

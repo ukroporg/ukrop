@@ -31,7 +31,7 @@ pub enum Command {
         #[arg(trailing_var_arg = true)]
         query: Vec<String>,
     },
-    /// Search across all panels (alias for interactive picker with pre-filled query)
+    /// Search directories, commands and SSH hosts (picker with a pre-filled query)
     Search {
         /// Search query
         #[arg(trailing_var_arg = true)]

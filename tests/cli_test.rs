@@ -65,6 +65,37 @@ fn test_init_scripts_pass_new_hook_flags() {
     }
 }
 
+/// `u search <query>` is documented as an entry point alongside `u cd`/`u
+/// run`/`u ssh`, so every wrapper must intercept it. If `search` is missing
+/// from the wrapper's subcommand condition the wrapper falls through to the
+/// bare binary and the raw `cd:/path` selection line is printed to the
+/// terminal instead of being consumed by the shell.
+#[test]
+fn test_init_scripts_intercept_search_subcommand() {
+    for shell in ["bash", "zsh", "fish", "powershell"] {
+        let out = std::process::Command::new(env!("CARGO_BIN_EXE_ukrop"))
+            .args(["init", shell])
+            .output()
+            .unwrap();
+        let script = String::from_utf8_lossy(&out.stdout);
+
+        // Find the wrapper's subcommand dispatch condition: the single line
+        // that tests $1 against "ssh", and assert it also tests "search".
+        let cond = script
+            .lines()
+            .find(|l| l.contains("\"ssh\"") || l.contains("'ssh'"))
+            .unwrap_or_else(|| {
+                panic!("{} init script must have a wrapper subcommand condition", shell)
+            });
+        assert!(
+            cond.contains("\"search\"") || cond.contains("'search'"),
+            "{} wrapper must intercept `search` like cd/run/ssh: {}",
+            shell,
+            cond
+        );
+    }
+}
+
 #[test]
 fn test_hook_and_list() {
     let dir = tempfile::tempdir().unwrap();
