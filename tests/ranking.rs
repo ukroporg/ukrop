@@ -246,3 +246,56 @@ fn test_favorites_survive_the_empty_query_view() {
         .unwrap();
     assert!(pos < 3, "a favorite must stay near the top, got position {}", pos);
 }
+
+#[test]
+fn test_clustered_fuzzy_match_outranks_a_scattered_one() {
+    // Query "seo2". Neither row contains it literally, so both land in the
+    // fuzzy tier. The scattered row is deliberately given the higher frecency
+    // and the shorter length, so it wins on every other signal — only the
+    // contiguity bonus can lift the clustered row above it. Zero out
+    // `contiguity_weight` and this assertion flips.
+    let mut l = UnifiedList::new(
+        vec![
+            Row {
+                kind: PickerMode::Commands,
+                // s..e..o..2, every matched character isolated
+                entry: entry("svc deploy prod v2", 12.0, 2 * DAY),
+            },
+            Row {
+                kind: PickerMode::Commands,
+                // "seo" stays together, then a lone "2"
+                entry: entry("run seo task v2", 5.0, 2 * DAY),
+            },
+        ],
+        None,
+        Transitions::new(),
+        ScoringConfig::default(),
+    );
+    l.filter = TypeFilter::Run;
+    l.update_filter("seo2");
+    assert_eq!(
+        shown(&l),
+        vec!["run seo task v2".to_string(), "svc deploy prod v2".to_string()]
+    );
+}
+
+#[test]
+fn test_literal_substring_still_beats_the_best_fuzzy_match() {
+    // Contiguity must not let a fuzzy row jump the substring tier, however
+    // tightly its characters cluster.
+    let mut l = UnifiedList::new(
+        vec![
+            Row {
+                kind: PickerMode::Commands,
+                entry: entry("gcx login seo --org-id 2", 30.0, HOUR),
+            },
+            Row { kind: PickerMode::Commands, entry: entry("ssh seo2", 0.1, 60 * DAY) },
+        ],
+        None,
+        Transitions::new(),
+        ScoringConfig::default(),
+    );
+    l.filter = TypeFilter::Run;
+    l.update_filter("seo2");
+    assert_eq!(shown(&l)[0], "ssh seo2");
+}

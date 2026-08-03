@@ -34,6 +34,9 @@ pub struct RankInput<'a> {
     pub match_kind: MatchKind,
     /// Raw nucleo match quality, 0 when no query is active.
     pub fuzzy_score: u32,
+    /// How tightly the matched characters clustered. Only ever non-zero for
+    /// `MatchKind::Fuzzy`; see `fuzzy::contiguity_score`.
+    pub contiguity: u32,
 }
 
 /// Score a row on every axis except the position-dependent type bonus,
@@ -46,7 +49,16 @@ pub fn base_score(input: &RankInput, cfg: &ScoringConfig, now: i64) -> i32 {
         // A prefix match is necessarily also a substring match; both apply.
         MatchKind::Prefix => score += cfg.prefix_bonus + cfg.substring_bonus,
         MatchKind::Substring => score += cfg.substring_bonus,
-        MatchKind::Fuzzy => score += cfg.fuzzy_penalty,
+        // Fuzzy only: a substring match is a single run, so its contiguity
+        // would be the same constant for every row in the tier.
+        MatchKind::Fuzzy => {
+            score += cfg.fuzzy_penalty;
+            score += scale_capped(
+                input.contiguity as f64,
+                cfg.contiguity_weight,
+                cfg.contiguity_cap,
+            );
+        }
     }
     score += input.fuzzy_score as i32;
 
@@ -201,6 +213,7 @@ mod tests {
             transition_score: 0.0,
             match_kind: MatchKind::None,
             fuzzy_score: 0,
+            contiguity: 0,
         }
     }
 
@@ -237,6 +250,49 @@ mod tests {
         i.match_kind = MatchKind::Fuzzy;
         // -4000 + 2955
         assert_eq!(base_score(&i, &cfg, NOW), -1045);
+    }
+
+    #[test]
+    fn test_contiguity_lifts_a_fuzzy_match() {
+        let cfg = ScoringConfig::default();
+        let mut i = input("abc");
+        i.match_kind = MatchKind::Fuzzy;
+        // "seo|2" — one run of 3 plus a lone char.
+        i.contiguity = 6;
+        assert_eq!(base_score(&i, &cfg, NOW), -1045 + 6 * 200);
+    }
+
+    #[test]
+    fn test_contiguous_fuzzy_match_outranks_scattered_one() {
+        let cfg = ScoringConfig::default();
+        let mut scattered = input("abc");
+        scattered.match_kind = MatchKind::Fuzzy;
+        scattered.contiguity = 0;
+        let mut clustered = input("abc");
+        clustered.match_kind = MatchKind::Fuzzy;
+        clustered.contiguity = 6;
+        assert!(base_score(&clustered, &cfg, NOW) > base_score(&scattered, &cfg, NOW));
+    }
+
+    #[test]
+    fn test_contiguity_is_ignored_for_substring_matches() {
+        let cfg = ScoringConfig::default();
+        let mut i = input("abc");
+        i.match_kind = MatchKind::Substring;
+        i.contiguity = 6;
+        // Unchanged from test_substring_alone — a substring match is one run,
+        // so the bonus must not apply and shift the whole tier.
+        assert_eq!(base_score(&i, &cfg, NOW), 10955);
+    }
+
+    #[test]
+    fn test_contiguity_bonus_is_capped() {
+        let cfg = ScoringConfig::default();
+        let mut i = input("abc");
+        i.match_kind = MatchKind::Fuzzy;
+        // A long contiguous run would otherwise dwarf every other signal.
+        i.contiguity = 10_000;
+        assert_eq!(base_score(&i, &cfg, NOW), -1045 + cfg.contiguity_cap);
     }
 
     #[test]

@@ -67,8 +67,8 @@ u --version    # show version
   working directory, and execution duration via `ukrop hook-cmd`. Commands starting with `ssh ` are additionally
   matched against known hosts and recorded as a transition from the command's cwd
 - A **shell wrapper function** `ukrop` that handles `cd`, `run`, and `ssh` output
-- A **Ctrl+R binding** that opens the unified list with the `run` type filter preselected; supports all result types
-  (cd/run/ssh) since the query can still match any row once you press Tab
+- A **Ctrl+R binding** that opens the unified list unfiltered (the `All` type filter), so commands, directories and
+  SSH hosts all compete for the top of the list; press Tab to narrow it to a single type
 - An **alias `u=ukrop`** for quick access
 
 See [Shell integration flags](#shell-integration-flags) below for what `--shell-id` and `--cwd` are for and what
@@ -223,7 +223,7 @@ panel showed. Search filters and highlights (cyan + underline) across all visibl
 | `u run`            | run                      |
 | `u ssh`            | ssh                      |
 | `u search <query>` | All                      |
-| Ctrl+R             | run                      |
+| Ctrl+R             | All                      |
 
 Press **Tab** at any point to widen or narrow the filter without restarting the picker.
 
@@ -290,8 +290,9 @@ ignore_patterns = [
 frecency_weight = 100.0   # scale factor for frecency bonus (default: 100.0)
 substring_bonus = 8000    # bonus for substring matches (default: 8000)
 prefix_bonus = 10000      # bonus for prefix matches (default: 10000)
-# ... plus fuzzy_penalty, favorite_bonus, recency_24h_bonus, recency_7d_bonus, cwd_bonus,
-# transition_weight, transition_cap, brevity_bonus_max, and [scoring.type_bonus].schedule —
+# ... plus fuzzy_penalty, contiguity_weight, contiguity_cap, favorite_bonus, recency_24h_bonus,
+# recency_7d_bonus, cwd_bonus, transition_weight, transition_cap, brevity_bonus_max,
+# and [scoring.type_bonus].schedule —
 # see doc/search.md#configuration for the complete list with every default.
 
 [cleanup]

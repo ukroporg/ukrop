@@ -48,7 +48,8 @@ score = match_score + frecency + recency + locality + brevity + favorite + type_
 ```
 
 `match_score` is `prefix_bonus`/`substring_bonus`/`fuzzy_penalty` (mutually
-exclusive tiers, see below) plus the raw `fuzzy_score`. `locality` is
+exclusive tiers, see below) plus the raw `fuzzy_score`, and — for fuzzy-tier
+rows only — the [contiguity bonus](#contiguity-fuzzy-tier-only). `locality` is
 `cwd_bonus` for `run` rows or the transition-based bonus for `cd`/`ssh` rows.
 `type_bonus` is the position-dependent diversity adjustment described in
 [Diversity re-rank](#diversity-re-rank); it is the only component that isn't a
@@ -62,6 +63,7 @@ pure function of the row itself.
 | `substring_bonus`     | +8,000                              | query appears as a contiguous substring         | Stacks with `prefix_bonus`                                          |
 | `fuzzy_penalty`       | −4,000                              | fuzzy-only match (no substring)                 | Never combined with prefix/substring bonuses                        |
 | `fuzzy_score`         | 0–300                               | any active query                                | Raw nucleo match-quality score                                     |
+| `contiguity_weight`   | 0–6,000 (`contiguity × 200.0`, capped) | fuzzy-only matches                           | Rewards matches that stayed together; capped by `contiguity_cap` (default 6,000) — see below |
 | `favorite_bonus`      | +5,000                              | `is_favorite`                                   |                                                                       |
 | `recency_24h_bonus`   | +6,000                              | `last_time` within 24h                          | Mutually exclusive with the 7d tier                                 |
 | `recency_7d_bonus`    | +2,500                              | `last_time` between 24h and 7 days              | Mutually exclusive with the 24h tier                                |
@@ -81,6 +83,39 @@ together: **+18,000 combined**, not a choice between the two. `fuzzy_penalty`
 is the only match-quality term that is never combined with the other two — it
 applies solely when the query matches by character order but not as a
 contiguous substring.
+
+### Contiguity (fuzzy tier only)
+
+Within the fuzzy tier, a match whose characters stayed together is almost
+always what you meant. Typing `seo2` should favour a row containing `seo` over
+one where the `s`, `e`, `o` and `2` happen to be scattered across a long
+command line.
+
+The matched positions are grouped into runs of consecutive characters, and each
+run is scored quadratically:
+
+```
+contiguity = sum(run_length^2) - total_matched_length
+```
+
+Subtracting the total match length normalizes a fully scattered match to
+exactly 0, so the term only ever lifts a row — it never penalizes one. For the
+query `seo2`:
+
+| Match                | Runs      | Contiguity            | Bonus at `contiguity_weight = 200` |
+|----------------------|-----------|-----------------------|-------------------------------------|
+| `s`…`e`…`o`…`2`      | 1,1,1,1   | `1+1+1+1 − 4` = **0** | +0                                  |
+| `se`…`o2`            | 2,2       | `4+4 − 4` = **4**     | +800                                |
+| `seo`…`2`            | 3,1       | `9+1 − 4` = **6**     | +1,200                              |
+
+Because the runs are squared, one long run always beats the same number of
+characters split across several short ones.
+
+This applies **only to fuzzy-tier matches**. A substring match is a single run
+by definition, so the term would be the same constant for every row in that
+tier and could not order them; it is skipped there. `contiguity_cap` (default
+6,000) keeps a long run from overwhelming frecency and recency — without it a
+20-character run would contribute 80,000, dwarfing every other signal.
 
 ### Recency: mutually exclusive tiers, not a curve
 
@@ -183,12 +218,13 @@ be a no-op — those views are pure base-score order.
 
 With an empty search bar the full formula still applies, minus the
 query-dependent terms (`prefix_bonus`, `substring_bonus`, `fuzzy_penalty`,
-`fuzzy_score`), and the diversity re-rank runs normally. This makes the
-opening screen a genuine "what do I most likely want, here, now" list, ranked
-by recency, locality, frecency, favorites, and brevity — rather than raw
-database order. Typing the first character adds the match-quality terms on
-top of the same ranking rather than switching to a different scoring regime,
-so there's no discontinuity between the empty and non-empty views.
+`fuzzy_score`, and the contiguity bonus), and the diversity re-rank runs
+normally. This makes the opening screen a genuine "what do I most likely
+want, here, now" list, ranked by recency, locality, frecency, favorites, and
+brevity — rather than raw database order. Typing the first character adds the
+match-quality terms on top of the same ranking rather than switching to a
+different scoring regime, so there's no discontinuity between the empty and
+non-empty views.
 
 ## Configuration
 
@@ -202,6 +238,8 @@ frecency_cap        = 5000    # ceiling for the frecency term
 substring_bonus     = 8000
 prefix_bonus        = 10000
 fuzzy_penalty       = -4000
+contiguity_weight   = 200.0   # scale factor applied to the contiguity score
+contiguity_cap      = 6000
 favorite_bonus      = 5000
 recency_24h_bonus   = 6000
 recency_7d_bonus    = 2500

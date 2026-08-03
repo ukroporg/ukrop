@@ -31,6 +31,33 @@ fn test_init_zsh() {
 }
 
 #[test]
+fn test_ctrl_r_binding_opens_the_unfiltered_picker() {
+    // Ctrl+R searches everything, so it must not preselect the `run` type
+    // filter. `search` is the subcommand that opens the picker on `All`.
+    for shell in ["bash", "zsh", "fish", "powershell"] {
+        let out = std::process::Command::new(env!("CARGO_BIN_EXE_ukrop"))
+            .args(["init", shell])
+            .output()
+            .unwrap();
+        let script = String::from_utf8_lossy(&out.stdout);
+        let (want, unwanted) = match shell {
+            "powershell" => (") search 2>$null", ") run 2>$null"),
+            _ => ("ukrop search </dev/tty", "ukrop run </dev/tty"),
+        };
+        assert!(
+            script.contains(want),
+            "{} Ctrl+R binding must launch the unfiltered picker ({want})",
+            shell
+        );
+        assert!(
+            !script.contains(unwanted),
+            "{} Ctrl+R binding must not preselect the run filter ({unwanted})",
+            shell
+        );
+    }
+}
+
+#[test]
 fn test_init_scripts_pass_new_hook_flags() {
     for shell in ["bash", "zsh", "fish", "powershell"] {
         let out = std::process::Command::new(env!("CARGO_BIN_EXE_ukrop"))

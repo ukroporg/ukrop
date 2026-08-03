@@ -21,6 +21,10 @@ pub struct ScoringConfig {
     pub prefix_bonus: i32,
     /// Negative. Applied to fuzzy-only matches so they rank below substring matches.
     pub fuzzy_penalty: i32,
+    /// Multiplies `fuzzy::contiguity_score` so fuzzy matches whose characters
+    /// stayed together outrank scattered ones. Fuzzy tier only.
+    pub contiguity_weight: f64,
+    pub contiguity_cap: i32,
     pub favorite_bonus: i32,
     pub recency_24h_bonus: i32,
     pub recency_7d_bonus: i32,
@@ -145,6 +149,8 @@ impl Default for ScoringConfig {
             substring_bonus: 8000,
             prefix_bonus: 10000,
             fuzzy_penalty: -4000,
+            contiguity_weight: 200.0,
+            contiguity_cap: 6000,
             favorite_bonus: 5000,
             recency_24h_bonus: 6000,
             recency_7d_bonus: 2500,

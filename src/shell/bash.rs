@@ -78,7 +78,7 @@ ukrop() {
 # Ctrl+R binding for command history
 __ukrop_ctrl_r() {
     local result
-    result="$(command ukrop run </dev/tty)" || return $?
+    result="$(command ukrop search </dev/tty)" || return $?
     if [ -n "$result" ]; then
         # Strip edit: prefix — Ctrl+R always puts text on command line
         [[ "$result" == edit:* ]] && result="${result#edit:}"

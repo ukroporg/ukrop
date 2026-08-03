@@ -103,7 +103,7 @@ if (Get-Module -Name PSReadLine -ErrorAction Ignore) {
         $encoding = [Console]::OutputEncoding
         try {
             [Console]::OutputEncoding = [System.Text.Utf8Encoding]::new()
-            $result = & (Get-Command ukrop -CommandType Application | Select-Object -First 1) run 2>$null
+            $result = & (Get-Command ukrop -CommandType Application | Select-Object -First 1) search 2>$null
         } finally {
             [Console]::OutputEncoding = $encoding
         }
