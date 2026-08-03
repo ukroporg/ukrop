@@ -87,11 +87,11 @@ impl FuzzyMatcher {
         // Scratch buffer reused across rows: `indices` runs for every
         // fuzzy-tier row on every keystroke.
         let mut indices: Vec<u32> = Vec::new();
+        let mut buf: Vec<char> = Vec::new();
         let mut results: Vec<FuzzyMatch> = items
             .iter()
             .enumerate()
             .filter_map(|(idx, item)| {
-                let mut buf = Vec::new();
                 let haystack = nucleo_matcher::Utf32Str::new(item, &mut buf);
                 // Try substring first
                 if let Some(score) = substring_atom.score(haystack, &mut self.matcher) {
@@ -222,6 +222,27 @@ mod tests {
         let mut matcher = FuzzyMatcher::new();
         let positions = matcher.match_positions("", "foobar");
         assert!(positions.is_empty());
+    }
+
+    #[test]
+    fn test_non_ascii_rows_do_not_contaminate_each_other() {
+        // `filter` reuses one `Vec<char>` scratch buffer across rows, and that
+        // buffer is only touched for non-ASCII haystacks. A long row followed
+        // by a shorter one is the case that would expose a stale tail if the
+        // buffer were not reset between rows.
+        let mut matcher = FuzzyMatcher::new();
+        let items = vec![
+            "cd ~/Документы/проекты/архив".to_string(),
+            "cd ~/café".to_string(),
+            "cd ~/plain-ascii".to_string(),
+        ];
+        let hits: Vec<usize> = matcher.filter("café", &items).iter().map(|m| m.idx).collect();
+        assert_eq!(hits, vec![1], "only the café row may match");
+
+        // Same matcher, second query: the long Cyrillic row must still match
+        // on its own terms after the shorter row reused the buffer.
+        let hits: Vec<usize> = matcher.filter("архив", &items).iter().map(|m| m.idx).collect();
+        assert_eq!(hits, vec![0], "only the Cyrillic row may match");
     }
 
     #[test]

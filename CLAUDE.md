@@ -59,7 +59,7 @@ source "$HOME/.cargo/env"
 
 ## Tests
 
-199 tests total. Run with `cargo test`. No special setup needed — integration tests use tempfile for isolated DB instances.
+200 tests total. Run with `cargo test`. No special setup needed — integration tests use tempfile for isolated DB instances.
 
 ## Packaging
 
