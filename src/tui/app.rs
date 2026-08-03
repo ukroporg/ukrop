@@ -219,7 +219,8 @@ impl UnifiedList {
         let matches = self.fuzzy.filter(query, &self.display_texts);
 
         let mut scored: Vec<Scored> = Vec::with_capacity(matches.len());
-        for (idx, fuzzy_score, is_substring) in matches {
+        for m in matches {
+            let idx = m.idx;
             let row = &self.rows[idx];
             if !self.filter.accepts(row.kind) {
                 continue;
@@ -235,7 +236,7 @@ impl UnifiedList {
                 MatchKind::None
             } else if self.display_texts[idx].to_lowercase().starts_with(&query_lower) {
                 MatchKind::Prefix
-            } else if is_substring {
+            } else if m.is_substring {
                 MatchKind::Substring
             } else {
                 MatchKind::Fuzzy
@@ -250,7 +251,8 @@ impl UnifiedList {
                 cwd_match: matches!(row.kind, PickerMode::Commands) && self.is_local(row),
                 transition_score: self.transition_score(row),
                 match_kind,
-                fuzzy_score,
+                fuzzy_score: m.score,
+                contiguity: m.contiguity,
             };
             let base = base_score(&input, &self.scoring, now);
             scored.push(Scored { row_idx: idx, kind: row.kind, base, score: base });

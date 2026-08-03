@@ -82,7 +82,7 @@ ukrop() {
 # Ctrl+R binding for command history
 __ukrop_ctrl_r() {
     local result edit=0
-    result="$(command ukrop run </dev/tty)" || return $?
+    result="$(command ukrop search </dev/tty)" || return $?
     if [[ -n "$result" ]]; then
         if [[ "$result" == edit:* ]]; then
             result="${result#edit:}"

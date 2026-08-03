@@ -88,7 +88,7 @@ u cd projects   # unified list, cd type filter preselected, "projects" pre-fille
 u --help        # show help
 ```
 
-Press **Ctrl+R** in your shell to open the TUI with the `run` type filter preselected.
+Press **Ctrl+R** in your shell to open the TUI on the unfiltered `All` list — commands, directories and SSH hosts compete together. Press Tab to narrow it to a single type.
 
 ### Export / Import / Demo
 

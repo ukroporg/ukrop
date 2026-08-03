@@ -47,18 +47,18 @@ source "$HOME/.cargo/env"
 
 - TUI renders to `/dev/tty`, not stdout. Stdout is captured by shell wrapper for cd/eval.
 - SQLite DB at `~/Library/Application Support/ukrop/ukrop.db` (macOS) or `~/.local/share/ukrop/ukrop.db` (Linux) with WAL mode. Override via `UKROP_DB_PATH` env var.
-- Shell integration: `eval "$(ukrop init zsh)"` installs a precmd hook and `ukrop` wrapper function. Shell hooks capture command duration (via `$SECONDS` in bash/zsh, `$CMD_DURATION` in fish, `Get-History` Duration in PowerShell).
+- Shell integration: `eval "$(ukrop init zsh)"` installs a precmd hook, a `ukrop` wrapper function, and a Ctrl+R binding that calls `ukrop search` (unfiltered `All` list — not `ukrop run`). Shell hooks capture command duration (via `$SECONDS` in bash/zsh, `$CMD_DURATION` in fish, `Get-History` Duration in PowerShell).
 - Optional config at `~/.config/ukrop/config.toml` — ignore patterns, scoring weights, cleanup settings, theme presets (12 built-in), `[layout]` (deprecated as of 0.20.0: parsed for back-compat, ignored, not shown in the config editor). Override via `UKROP_CONFIG_PATH`.
 - In-TUI command editor accessible via F2 key — opens a 10-line dialog pre-filled with the selected command for editing before execution. Enter inserts newline, F5 executes, Esc cancels. Supports Up/Down arrow navigation between lines.
 - In-TUI config editor accessible via F9 key or `ukrop config` subcommand. Live preview of theme changes; Esc cancels, F9/Ctrl+S saves.
-- Ranking: one formula scores every row (cd/run/ssh) — match quality, frecency, mutually-exclusive recency tiers, locality (`cwd_bonus` for run, decayed `transitions`-table score for cd/ssh), brevity, favorites, plus a position-dependent type-diversity bonus applied by a three-way merge so the `All` view doesn't get dominated by one type. See `doc/search.md`.
+- Ranking: one formula scores every row (cd/run/ssh) — match quality, frecency, mutually-exclusive recency tiers, locality (`cwd_bonus` for run, decayed `transitions`-table score for cd/ssh), brevity, favorites, plus a position-dependent type-diversity bonus applied by a three-way merge so the `All` view doesn't get dominated by one type. Fuzzy-tier rows additionally get a contiguity bonus (`sum(run_len^2) - match_len`, weighted and capped) so `seo`+`2` outranks a scattered `s`…`e`…`o`…`2`; substring rows skip it, being a single run by definition. See `doc/search.md`.
 - `transitions` table (schema v5) records directory→directory and directory→host jumps, read once at TUI startup. Three capture paths: picker-initiated picks (synchronous, exact), manual `cd` via the `hook --shell-id` prompt hook, manual `ssh` via `hook-cmd` detecting the `ssh ` prefix. `ukrop import` backfills it from shell history.
 - Non-interactive mode: `ukrop cd <query>` prints best match when stdout is not a TTY.
 - Auto-cleanup removes stale missing directories, transition rows, and per-shell PWD bookkeeping (configurable, default 90 days).
 
 ## Tests
 
-171 tests total. Run with `cargo test`. No special setup needed — integration tests use tempfile for isolated DB instances.
+192 tests total. Run with `cargo test`. No special setup needed — integration tests use tempfile for isolated DB instances.
 
 ## Packaging
 

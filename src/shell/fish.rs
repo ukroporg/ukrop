@@ -59,7 +59,7 @@ end
 
 # Ctrl+R binding for command history
 function __ukrop_ctrl_r
-    set -l result (command ukrop run </dev/tty)
+    set -l result (command ukrop search </dev/tty)
     or return
     set -l edit 0
     if test -n "$result"
