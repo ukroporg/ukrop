@@ -68,7 +68,9 @@ src/
     edit_dialog.rs — in-TUI command editor modal (F2)
 tests/             — integration tests
 packaging/         — Homebrew formula and deb packaging
-doc/website/       — static site for ukrop.org (plain HTML/CSS/JS, no build step)
+doc/website/       — static site for ukrop.org (plain HTML/CSS/JS, no build step);
+                     gitignored (`/doc/website` in .gitignore) — not tracked in this
+                     repository, maintained and deployed outside version control
 ```
 
 ## Testing as a real user (Homebrew)

@@ -33,7 +33,7 @@ source "$HOME/.cargo/env"
 - `tests/` — Integration tests (cli, frecency, history parsing)
 - `tests/fixtures/` — Sample history files for tests
 - `packaging/` — Homebrew formula and deb postinst
-- `doc/website/` — Static multipage site for ukrop.org (pure HTML/CSS/JS, no build step). Deployable via GitHub Pages with the bundled `CNAME`.
+- `doc/website/` — Static multipage site for ukrop.org (pure HTML/CSS/JS, no build step). Deployable via GitHub Pages with the bundled `CNAME`. Gitignored (`/doc/website` in `.gitignore`) — the directory may exist on a developer's disk but is deliberately untracked in this repository; it's maintained and deployed outside version control.
 
 ## Rules
 

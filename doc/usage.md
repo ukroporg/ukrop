@@ -249,7 +249,7 @@ Press **F1** inside the TUI to show the help overlay with all shortcuts.
 | Ctrl+P / N   | Navigate up / down                                           |
 | Ctrl+F       | Toggle favorite                                              |
 | F8 / Ctrl+Del | Delete entry                                                |
-| Delete       | Delete char at cursor (or delete the selected entry, if the search bar is already empty) |
+| Delete       | Delete char at cursor (or delete the selected entry, if the cursor is at the end of the search text — trivially true when the search bar is empty, but also true any time the cursor has been moved to the end of a non-empty query) |
 | Ctrl+U       | Clear search                                                 |
 | Ctrl+C / D   | Quit                                                         |
 | F1           | Show help overlay                                            |
