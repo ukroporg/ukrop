@@ -42,23 +42,24 @@ Restart the shell (or `source ~/.zshrc`).
 
 ---
 
-## Scene 3: Three-Panel TUI Overview (0:50 - 1:30)
+## Scene 3: Unified List Overview (0:50 - 1:30)
 
 ```sh
 u
 ```
 
-The TUI opens with all three panels visible: cd (directories), run (commands), ssh (hosts).
+The TUI opens on one ranked list mixing directories, commands, and SSH hosts — no panels to choose between. Each row
+carries a sigil: `/` for a directory, `$` for a command, `@` for an SSH host.
 
 Pause to let the viewer see the layout. Point out:
 
-- **cd panel** (top-left): directories sorted by frecency, favorites starred at top
-- **run panel** (right): commands with full history
-- **ssh panel** (bottom-left): SSH hosts with connection details
+- **Sigils**: `/` directories sorted by locality/frecency, `$` commands with full history, `@` SSH hosts with
+  connection details, all interleaved in one list so the top stays type-diverse
+- **Title bar**: shows the match count, the active type filter (`All` by default), and the cwd-filter tag when on
 - **Details bar** at the bottom: path, visit count, last visit, exists/missing status
-- **Shortcut bar**: F1 help, F2 config, Tab, Enter, etc.
+- **Shortcut bar**: F1 help, F9 config, Tab (type filter), Enter, etc.
 
-Voice: "Everything in one place. Directories, commands, SSH hosts. The most-used items float to the top automatically."
+Voice: "Everything in one place, one ranked list. Directories, commands, SSH hosts. The most likely thing you want — right now, from here — floats to the top automatically."
 
 ---
 
@@ -66,23 +67,23 @@ Voice: "Everything in one place. Directories, commands, SSH hosts. The most-used
 
 Start typing in the search bar:
 
-1. Type `web` -- all three panels filter simultaneously. cd shows webapp paths, run shows web-related commands, ssh shows web servers.
+1. Type `web` -- the list filters across all three types at once. webapp paths, web-related commands, and web servers all show up, ranked together.
 2. Clear with Ctrl+U.
-3. Type `docker` -- run panel highlights docker commands, cd shows infra directory.
-4. Clear. Type `prod` -- ssh panel shows prod servers, run shows deploy commands.
+3. Type `docker` -- docker commands surface, along with any matching directory or host.
+4. Clear. Type `prod` -- prod servers and deploy commands surface together.
 
 Voice: "One search box filters everything. Substring matches first, fuzzy fallback. The matched characters are highlighted so you always know why something matched."
 
 ---
 
-## Scene 5: Switching Panels with Tab (2:15 - 2:50)
+## Scene 5: Type Filter with Tab (2:15 - 2:50)
 
-1. Press **Tab** to switch active panel from cd to run (green border moves).
-2. Press **Tab** again to switch to ssh.
-3. Press **Shift+Tab** to go back.
-4. Use **Up/Down** to navigate within the active panel. Show the details bar updating as you move.
+1. Press **Tab** to cycle the type filter: All → cd → run → ssh → All (shown in the title bar).
+2. Press **Shift+Tab** to cycle backward.
+3. Use **Up/Down** to navigate the list. Show the details bar updating as you move.
+4. Press **Ctrl+W** to show the cwd filter narrowing the list to rows tied to the current directory, then press it again to clear it.
 
-Voice: "Tab switches panels. Arrow keys navigate. The active panel has the green border."
+Voice: "Tab cycles a type filter instead of switching panels — the ranking underneath doesn't change, it just narrows what's shown. Ctrl+W narrows further to only what's tied to where you are right now."
 
 ---
 
@@ -145,22 +146,26 @@ Voice: "Ctrl+F to favorite, Ctrl+Del to delete, Ctrl+Y to copy. Favorites always
 
 ## Scene 10: Themes & Config (4:35 - 4:55)
 
-Press **F2** to open the config editor. A modal overlay appears on top of the TUI showing all settings grouped into sections:
+Press **F9** to open the config editor. A modal overlay appears on top of the TUI showing all settings grouped into sections:
 
 - **Scoring** -- frecency_weight, substring_bonus, prefix_bonus (tune how results are ranked)
 - **Cleanup** -- stale_days (how long to keep missing directories)
 - **Theme** -- preset selector with `< Left/Right >` arrows to cycle through themes, plus toggles for selection_bold, match_underline, favorite_italic
-- **Layout** -- left_panel_pct and cd_panel_pct (adjust panel proportions)
+- **Behavior** -- confirm_delete
 - **Ignore Patterns** -- add patterns to exclude commands from tracking
+
+(The old **Layout** section — panel width ratios — is gone from the dialog now that there's one list instead of three
+panels. `[layout]` is still parsed from an existing `config.toml` for backward compatibility, but it has no effect
+and isn't shown here.)
 
 Steps to show:
 
-1. Navigate to Theme > preset. Use **Left/Right** arrows to cycle: Default, Gruvbox, Nord, Dracula, Catppuccin. The background panels update in real-time with each theme change -- the viewer sees colors shift live behind the config dialog.
+1. Navigate to Theme > preset. Use **Left/Right** arrows to cycle: Default, Gruvbox, Nord, Dracula, Catppuccin. The list behind updates in real-time with each theme change -- the viewer sees colors shift live behind the config dialog.
 2. Toggle **favorite_italic** on -- show how starred items become italic.
-3. Change **left_panel_pct** from 25 to 35 -- panels resize live.
-4. Press **Esc** to cancel and revert all changes. Open again with **F2**, pick Gruvbox, press **F2** to save.
+3. Adjust a scoring weight, e.g. bump **prefix_bonus** -- no live re-rank needed for the demo, just show the field editing.
+4. Press **Esc** to cancel and revert all changes. Open again with **F9**, pick Gruvbox, press **F9** to save.
 
-Voice: "F2 opens the config editor. 12 built-in themes with live preview -- the panels behind update as you browse. Tweak layout ratios, scoring weights, ignore patterns. F2 saves, Esc cancels and reverts everything."
+Voice: "F9 opens the config editor. 12 built-in themes with live preview -- the list behind updates as you browse. Tweak scoring weights, ignore patterns. F9 saves, Esc cancels and reverts everything."
 
 ---
 

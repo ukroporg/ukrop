@@ -24,12 +24,12 @@ source "$HOME/.cargo/env"
 - `src/cli.rs` — Clap derive CLI definition
 - `src/util.rs` — XDG paths, path helpers, `UKROP_DB_PATH` env override
 - `src/frecency.rs` — Frecency scoring (exponential decay, 1-week half-life)
-- `src/db/` — SQLite layer (model.rs, store.rs, migrate.rs)
+- `src/db/` — SQLite layer (model.rs, store.rs, migrate.rs, transitions.rs)
 - `src/demo.rs` — Demo data generation for screencasts
 - `src/config.rs` — TOML config file (`~/.config/ukrop/config.toml`), ignore patterns, scoring weights, theme/layout config, save support
 - `src/history/` — Shell history parsers (bash.rs, zsh.rs, fish.rs, powershell.rs)
 - `src/shell/` — Shell init script templates (bash.rs, zsh.rs, fish.rs, powershell.rs)
-- `src/tui/` — Terminal UI: 3-panel layout (configurable ratios, default cd 25%×75%, run 75%×100%, ssh 25%×25%) with shared search bar and cursor-enabled input (app.rs state machine, ui.rs rendering, input.rs keys, fuzzy.rs matcher, tty_reader.rs input parsing, theme.rs color theming, config_dialog.rs in-TUI config editor, edit_dialog.rs in-TUI command editor)
+- `src/tui/` — Terminal UI: a single locality-ranked list mixing cd/run/ssh rows (`/`, `$`, `@` sigils) behind one shared search bar, with a cycling type filter (All/cd/run/ssh) and cursor-enabled input (app.rs state machine, ranking.rs scoring + diversity re-rank, ui.rs rendering, input.rs keys, fuzzy.rs matcher, tty_reader.rs input parsing, theme.rs color theming, config_dialog.rs in-TUI config editor, edit_dialog.rs in-TUI command editor)
 - `tests/` — Integration tests (cli, frecency, history parsing)
 - `tests/fixtures/` — Sample history files for tests
 - `packaging/` — Homebrew formula and deb postinst
@@ -48,15 +48,17 @@ source "$HOME/.cargo/env"
 - TUI renders to `/dev/tty`, not stdout. Stdout is captured by shell wrapper for cd/eval.
 - SQLite DB at `~/Library/Application Support/ukrop/ukrop.db` (macOS) or `~/.local/share/ukrop/ukrop.db` (Linux) with WAL mode. Override via `UKROP_DB_PATH` env var.
 - Shell integration: `eval "$(ukrop init zsh)"` installs a precmd hook and `ukrop` wrapper function. Shell hooks capture command duration (via `$SECONDS` in bash/zsh, `$CMD_DURATION` in fish, `Get-History` Duration in PowerShell).
-- Optional config at `~/.config/ukrop/config.toml` — ignore patterns, scoring weights, cleanup settings, theme presets (Default/Light/Nord/Solarized/Monochrome), layout ratios. Override via `UKROP_CONFIG_PATH`.
+- Optional config at `~/.config/ukrop/config.toml` — ignore patterns, scoring weights, cleanup settings, theme presets (12 built-in), `[layout]` (deprecated as of 0.20.0: parsed for back-compat, ignored, not shown in the config editor). Override via `UKROP_CONFIG_PATH`.
 - In-TUI command editor accessible via F2 key — opens a 10-line dialog pre-filled with the selected command for editing before execution. Enter inserts newline, F5 executes, Esc cancels. Supports Up/Down arrow navigation between lines.
-- In-TUI config editor accessible via F9 key or `ukrop config` subcommand. Live preview of theme/layout changes; Esc cancels, F9/Ctrl+S saves.
+- In-TUI config editor accessible via F9 key or `ukrop config` subcommand. Live preview of theme changes; Esc cancels, F9/Ctrl+S saves.
+- Ranking: one formula scores every row (cd/run/ssh) — match quality, frecency, mutually-exclusive recency tiers, locality (`cwd_bonus` for run, decayed `transitions`-table score for cd/ssh), brevity, favorites, plus a position-dependent type-diversity bonus applied by a three-way merge so the `All` view doesn't get dominated by one type. See `doc/search.md`.
+- `transitions` table (schema v5) records directory→directory and directory→host jumps, read once at TUI startup. Three capture paths: picker-initiated picks (synchronous, exact), manual `cd` via the `hook --shell-id` prompt hook, manual `ssh` via `hook-cmd` detecting the `ssh ` prefix. `ukrop import` backfills it from shell history.
 - Non-interactive mode: `ukrop cd <query>` prints best match when stdout is not a TTY.
-- Auto-cleanup removes stale missing directories (configurable, default 90 days).
+- Auto-cleanup removes stale missing directories, transition rows, and per-shell PWD bookkeeping (configurable, default 90 days).
 
 ## Tests
 
-72 tests total. Run with `cargo test`. No special setup needed — integration tests use tempfile for isolated DB instances.
+171 tests total. Run with `cargo test`. No special setup needed — integration tests use tempfile for isolated DB instances.
 
 ## Packaging
 

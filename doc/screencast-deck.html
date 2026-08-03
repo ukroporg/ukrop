@@ -130,19 +130,19 @@ $ ukrop setup</pre>
 </div>
 
 <!-- ============================================================ -->
-<!-- SLIDE 4: Three-Panel TUI Overview -->
+<!-- SLIDE 4: Unified List Overview -->
 <!-- ============================================================ -->
 <div class="slide">
-  <h2>Three-Panel TUI</h2>
+  <h2>One Unified List</h2>
   <div class="screenshot-placeholder" style="min-height: 350px;">
     <span class="label">Screenshot: Full TUI</span>
-    Default view after `u` -- all three panels visible: cd (top-left, 26 dirs), run (right, 40 commands), ssh (bottom-left, 10 hosts). Active panel = cd with green border. Details bar shows selected directory path, visit count, last visit time, exists status. Shortcut bar at bottom.
+    Default view after `u` -- one ranked list mixing directories, commands, and SSH hosts, tagged with `/` `$` `@` sigils. Title bar shows match count and the active type filter (All). Details bar shows the selected row's path, visit count, last visit time, exists status. Shortcut bar at bottom.
   </div>
   <div class="two-col" style="margin-top: 20px;">
     <ul class="features">
-      <li><span class="highlight">cd</span> -- directories sorted by frecency</li>
-      <li><span class="highlight">run</span> -- commands from hooks &amp; history</li>
-      <li><span class="highlight">ssh</span> -- hosts from config &amp; history</li>
+      <li><span class="highlight">/</span> cd -- directories, ranked by locality &amp; frecency</li>
+      <li><span class="highlight">$</span> run -- commands from hooks &amp; history</li>
+      <li><span class="highlight">@</span> ssh -- hosts from config &amp; history</li>
     </ul>
     <ul class="features">
       <li>Favorites <span class="green">*</span> pinned to the top</li>
@@ -225,7 +225,7 @@ $ u                  # opens TUI, type to filter, Enter to jump</pre>
     </div>
     <div>
       <p><span class="key">Ctrl+Y</span> -- copy to clipboard</p>
-      <p style="margin-top: 10px;"><span class="key">Ctrl+W</span> -- CWD filter: show only commands run here</p>
+      <p style="margin-top: 10px;"><span class="key">Ctrl+W</span> -- CWD filter: narrow to rows tied to here</p>
     </div>
   </div>
 
@@ -320,7 +320,7 @@ $ u ssh prod         # pre-filled with "prod"</pre>
   <div class="two-col">
     <div class="screenshot-placeholder" style="min-height: 350px;">
       <span class="label">Screenshot: Config editor overlay</span>
-      F2 config dialog open over the TUI. Shows sections: Scoring (frecency_weight: 100, substring_bonus: 8000, prefix_bonus: 10000), Cleanup (stale_days: 90), Theme (preset: Gruvbox with arrows, selection_bold: [x], match_underline: [x], favorite_italic: [ ]), Layout (left_panel_pct: 25, cd_panel_pct: 75), Ignore Patterns ([+ Add new pattern]). Bottom: F2/^S save, Esc cancel, arrows navigate.
+      F2 config dialog open over the TUI. Shows sections: Scoring (frecency_weight: 100, substring_bonus: 8000, prefix_bonus: 10000), Cleanup (stale_days: 90), Theme (preset: Gruvbox with arrows, selection_bold: [x], match_underline: [x], favorite_italic: [ ]), Ignore Patterns ([+ Add new pattern]). No Layout section anymore -- the unified list has no panels to size. Bottom: F2/^S save, Esc cancel, arrows navigate.
     </div>
     <div style="padding-top: 20px;">
       <p><span class="key">F2</span> to open / save</p>
@@ -330,7 +330,6 @@ $ u ssh prod         # pre-filled with "prod"</pre>
         <li><span class="highlight">Scoring</span> -- ranking weights</li>
         <li><span class="highlight">Cleanup</span> -- stale directory pruning</li>
         <li><span class="highlight">Theme</span> -- 12 presets, live preview</li>
-        <li><span class="highlight">Layout</span> -- panel proportions</li>
         <li><span class="highlight">Ignore</span> -- exclude commands</li>
       </ul>
       <p style="margin-top: 20px;">All changes preview <span class="green">live</span> behind the dialog.</p>
@@ -382,13 +381,13 @@ $ u ssh prod         # pre-filled with "prod"</pre>
   <div class="two-col">
     <div>
       <p style="margin-bottom: 15px; color: #ffd700;">Navigation</p>
-      <p><span class="key">Tab</span> / <span class="key">Shift+Tab</span> -- switch panel</p>
+      <p><span class="key">Tab</span> / <span class="key">Shift+Tab</span> -- cycle type filter</p>
       <p><span class="key">Up</span> / <span class="key">Down</span> -- move in list</p>
       <p><span class="key">PgUp</span> / <span class="key">PgDn</span> -- scroll page</p>
       <p><span class="key">Home</span> / <span class="key">End</span> -- cursor in search</p>
       <p style="margin-top: 25px; margin-bottom: 15px; color: #ffd700;">Search</p>
       <p><span class="key">Ctrl+U</span> -- clear search</p>
-      <p><span class="key">Ctrl+W</span> -- CWD filter / delete word</p>
+      <p><span class="key">Ctrl+W</span> -- toggle CWD filter</p>
     </div>
     <div>
       <p style="margin-bottom: 15px; color: #ffd700;">Actions</p>
