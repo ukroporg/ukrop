@@ -114,7 +114,7 @@ impl PickerMode {
 use super::ranking::{base_score, interleave, MatchKind, RankInput, Scored};
 use super::{Row, TypeFilter};
 use crate::config::ScoringConfig;
-use std::collections::HashMap;
+use crate::db::Transitions;
 
 pub struct UnifiedList {
     pub rows: Vec<Row>,
@@ -126,8 +126,8 @@ pub struct UnifiedList {
     pub visible_height: usize,
     pub cwd_filter: bool,
     pub cwd: Option<String>,
-    /// (kind, target) -> decayed transition score, all originating at `cwd`.
-    transitions: HashMap<(String, String), f64>,
+    /// Decayed transition scores for jumps originating at `cwd`.
+    transitions: Transitions,
     scoring: ScoringConfig,
     fuzzy: FuzzyMatcher,
     display_texts: Vec<String>,
@@ -138,7 +138,7 @@ impl UnifiedList {
     pub fn new(
         rows: Vec<Row>,
         cwd: Option<String>,
-        transitions: HashMap<(String, String), f64>,
+        transitions: Transitions,
         scoring: ScoringConfig,
     ) -> Self {
         let display_texts = rows.iter().map(|r| r.entry.display.clone()).collect();
@@ -205,14 +205,11 @@ impl UnifiedList {
         }
     }
 
+    /// Allocation-free: `Transitions::score` borrows both the kind (an enum)
+    /// and the target, so this stays cheap when called for every row on every
+    /// keystroke. `PickerMode::Commands` scores 0.0 there.
     fn transition_score(&self, row: &Row) -> f64 {
-        if matches!(row.kind, PickerMode::Commands) {
-            return 0.0;
-        }
-        self.transitions
-            .get(&(row.kind.db_kind().to_string(), row.entry.value.clone()))
-            .copied()
-            .unwrap_or(0.0)
+        self.transitions.score(row.kind, &row.entry.value)
     }
 
     pub fn update_filter(&mut self, query: &str) {
@@ -377,7 +374,7 @@ impl AppState {
         AppState {
             query: String::new(),
             cursor: 0,
-            list: UnifiedList::new(Vec::new(), None, HashMap::new(), cfg.scoring.clone()),
+            list: UnifiedList::new(Vec::new(), None, Transitions::new(), cfg.scoring.clone()),
             confirm_delete: false,
             show_help: false,
             show_config: None,
@@ -440,7 +437,7 @@ pub fn run(
 
     let transitions = match &current_dir {
         Some(cwd) => store.transitions_from(cwd).unwrap_or_default(),
-        None => HashMap::new(),
+        None => Transitions::new(),
     };
 
     let cfg = Config::load();
@@ -684,7 +681,7 @@ mod unified_tests {
     use super::*;
     use crate::config::ScoringConfig;
     use crate::tui::{PickerEntry, Row, TypeFilter};
-    use std::collections::HashMap;
+    use crate::db::Transitions;
 
     fn entry(display: &str, score: f64, last_time: i64) -> PickerEntry {
         PickerEntry {
@@ -706,7 +703,7 @@ mod unified_tests {
     }
 
     fn list(rows: Vec<Row>) -> UnifiedList {
-        UnifiedList::new(rows, None, HashMap::new(), ScoringConfig::default())
+        UnifiedList::new(rows, None, Transitions::new(), ScoringConfig::default())
     }
 
     #[test]
@@ -727,7 +724,7 @@ mod unified_tests {
         let mut l = UnifiedList::new(
             vec![Row { kind: PickerMode::Commands, entry: entry("ls", 1.0, i64::MAX / 2) }],
             None,
-            HashMap::new(),
+            Transitions::new(),
             ScoringConfig::default(),
         );
         l.update_filter("");
@@ -813,7 +810,7 @@ mod unified_tests {
                 Row { kind: PickerMode::Commands, entry: entry("ls -l", 1.0, 0) },
             ],
             Some("/here".to_string()),
-            HashMap::new(),
+            Transitions::new(),
             ScoringConfig::default(),
         );
         l.update_filter("");
@@ -823,8 +820,7 @@ mod unified_tests {
 
     #[test]
     fn test_transition_bonus_applies_to_cd_rows() {
-        let mut t = HashMap::new();
-        t.insert(("cd".to_string(), "/target".to_string()), 20.0);
+        let t = Transitions::from([("cd", "/target", 20.0)]);
         let mut l = UnifiedList::new(
             vec![
                 Row { kind: PickerMode::Directories, entry: entry("/target", 1.0, 0) },
@@ -843,8 +839,7 @@ mod unified_tests {
         // SSH rows display "alias -> user@host" but the transition key is the DB value.
         let mut e = entry("prod -> root@1.2.3.4", 1.0, 0);
         e.value = "prod".to_string();
-        let mut t = HashMap::new();
-        t.insert(("ssh".to_string(), "prod".to_string()), 30.0);
+        let t = Transitions::from([("ssh", "prod", 30.0)]);
         let mut l = UnifiedList::new(
             vec![
                 Row { kind: PickerMode::SshHosts, entry: e },
@@ -909,8 +904,7 @@ mod unified_tests {
     fn test_cwd_filter_narrows_all_three_types() {
         let mut cmd_here = entry("ls", 1.0, 0);
         cmd_here.cwd = Some("/here".to_string());
-        let mut t = HashMap::new();
-        t.insert(("cd".to_string(), "/target".to_string()), 5.0);
+        let t = Transitions::from([("cd", "/target", 5.0)]);
         let mut l = UnifiedList::new(
             vec![
                 Row { kind: PickerMode::Commands, entry: cmd_here },

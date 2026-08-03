@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use ukrop::config::ScoringConfig;
+use ukrop::db::Transitions;
 use ukrop::tui::{PickerEntry, PickerMode, Row, TypeFilter, UnifiedList};
 
 const HOUR: i64 = 3600;
@@ -39,7 +39,7 @@ fn test_todays_command_beats_a_more_frequent_stale_one() {
             Row { kind: PickerMode::Commands, entry: entry("cargo clippy", 30.0, 40 * DAY) },
         ],
         None,
-        HashMap::new(),
+        Transitions::new(),
         ScoringConfig::default(),
     );
     l.update_filter("cargo");
@@ -63,7 +63,7 @@ fn test_substring_match_beats_fuzzy_match_of_equal_merit() {
             Row { kind: PickerMode::Commands, entry: entry("~/old/carcass", 1.0, HOUR) },
         ],
         None,
-        HashMap::new(),
+        Transitions::new(),
         ScoringConfig::default(),
     );
     l.update_filter("car");
@@ -107,7 +107,7 @@ fn test_fuzzy_penalty_is_crossable_by_overwhelming_merit() {
             Row { kind: PickerMode::Commands, entry: entry("~/old/carcass", 0.02, 200 * DAY) },
         ],
         Some("/here".to_string()),
-        HashMap::new(),
+        Transitions::new(),
         ScoringConfig::default(),
     );
     l.update_filter("car");
@@ -154,7 +154,7 @@ fn test_fuzzy_penalty_is_not_crossable_by_favorite_cwd_and_recency_alone() {
             Row { kind: PickerMode::Commands, entry: entry("carcass-utility-script", 0.02, 200 * DAY) },
         ],
         Some("/here".to_string()),
-        HashMap::new(),
+        Transitions::new(),
         ScoringConfig::default(),
     );
     l.update_filter("car");
@@ -167,8 +167,7 @@ fn test_fuzzy_penalty_is_not_crossable_by_favorite_cwd_and_recency_alone() {
 
 #[test]
 fn test_transition_target_outranks_an_unrelated_directory() {
-    let mut t = HashMap::new();
-    t.insert(("cd".to_string(), "/proj/api".to_string()), 25.0);
+    let t = Transitions::from([("cd", "/proj/api", 25.0)]);
     let mut l = UnifiedList::new(
         vec![
             Row { kind: PickerMode::Directories, entry: entry("/proj/api", 1.0, 5 * DAY) },
@@ -195,7 +194,7 @@ fn test_empty_query_top_of_list_is_type_diverse() {
         kind: PickerMode::Directories,
         entry: entry("/proj", 5.0, HOUR),
     });
-    let mut l = UnifiedList::new(rows, None, HashMap::new(), ScoringConfig::default());
+    let mut l = UnifiedList::new(rows, None, Transitions::new(), ScoringConfig::default());
     l.update_filter("");
     let dir_pos = l
         .ranked
@@ -214,7 +213,7 @@ fn test_type_filter_shows_only_that_type() {
             Row { kind: PickerMode::SshHosts, entry: entry("prod", 1.0, HOUR) },
         ],
         None,
-        HashMap::new(),
+        Transitions::new(),
         ScoringConfig::default(),
     );
     for (filter, expected) in [
@@ -239,7 +238,7 @@ fn test_favorites_survive_the_empty_query_view() {
         })
         .collect();
     rows.push(Row { kind: PickerMode::Commands, entry: fav });
-    let mut l = UnifiedList::new(rows, None, HashMap::new(), ScoringConfig::default());
+    let mut l = UnifiedList::new(rows, None, Transitions::new(), ScoringConfig::default());
     l.update_filter("");
     let pos = shown(&l)
         .iter()

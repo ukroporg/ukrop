@@ -1,5 +1,6 @@
 use std::process::Command;
 use ukrop::db::store::Store;
+use ukrop::tui::PickerMode;
 
 fn store(dir: &tempfile::TempDir) -> Store {
     Store::open(dir.path().join("t.db").to_str().unwrap()).unwrap()
@@ -15,7 +16,7 @@ fn test_selecting_a_directory_records_a_transition() {
     let mut s = store(&dir);
     ukrop::record_pick_transition(&mut s, Some("/from/here"), "cd", "/to/there").unwrap();
     let map = s.transitions_from("/from/here").unwrap();
-    assert!(map.contains_key(&("cd".to_string(), "/to/there".to_string())));
+    assert!(map.score(PickerMode::Directories, "/to/there") > 0.0);
 }
 
 #[test]
@@ -24,7 +25,7 @@ fn test_selecting_an_ssh_host_records_a_transition() {
     let mut s = store(&dir);
     ukrop::record_pick_transition(&mut s, Some("/from/here"), "ssh", "prod-web1").unwrap();
     let map = s.transitions_from("/from/here").unwrap();
-    assert!(map.contains_key(&("ssh".to_string(), "prod-web1".to_string())));
+    assert!(map.score(PickerMode::SshHosts, "prod-web1") > 0.0);
 }
 
 #[test]
@@ -58,7 +59,7 @@ fn test_shell_pwd_change_records_a_cd_transition() {
     ukrop::record_prompt_pwd(&mut s, "/a", Some("42")).unwrap();
     ukrop::record_prompt_pwd(&mut s, "/b", Some("42")).unwrap();
     let map = s.transitions_from("/a").unwrap();
-    assert!(map.contains_key(&("cd".to_string(), "/b".to_string())));
+    assert!(map.score(PickerMode::Directories, "/b") > 0.0);
 }
 
 #[test]
@@ -132,12 +133,12 @@ fn test_manual_ssh_transition_uses_resolved_alias_not_connect_string() {
     let s = Store::open(db_str).unwrap();
     let map = s.transitions_from("/home/x").unwrap();
     assert!(
-        map.contains_key(&("ssh".to_string(), "prod".to_string())),
+        map.score(PickerMode::SshHosts, "prod") > 0.0,
         "transition must be keyed on the resolved alias 'prod', got: {:?}",
-        map.keys().collect::<Vec<_>>()
+        map
     );
     assert!(
-        !map.contains_key(&("ssh".to_string(), "deploy@203.0.113.5".to_string())),
+        map.score(PickerMode::SshHosts, "deploy@203.0.113.5") == 0.0,
         "transition must not be keyed on the raw connect string"
     );
 }
@@ -170,9 +171,8 @@ fn test_picker_ssh_pick_is_not_double_recorded() {
 
     let s = Store::open(db_str).unwrap();
     let map = s.transitions_from("/home/x").unwrap();
-    let score = *map
-        .get(&("ssh".to_string(), "prod".to_string()))
-        .expect("transition should exist");
+    let score = map.score(PickerMode::SshHosts, "prod");
+    assert!(score > 0.0, "transition should exist");
     assert!(
         score < 1.5,
         "expected a single record (~1.0), got {} — transition was double-recorded",
